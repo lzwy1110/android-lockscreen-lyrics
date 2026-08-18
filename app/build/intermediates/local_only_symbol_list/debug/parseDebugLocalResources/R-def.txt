@@ -1,0 +1,20 @@
+R_DEF: Internal format may change without notice
+local
+color ic_launcher_background
+color transparent
+drawable ic_launcher_foreground
+mipmap ic_launcher
+mipmap ic_launcher_round
+string app_name
+string grant_notification_access
+string grant_overlay_access
+string no_lyrics_found
+string no_media_playing
+string notification_service_name
+string searching_lyrics
+string service_running
+string swipe_up_to_dismiss
+style Theme.LockscreenLyrics
+style Theme.LockscreenLyrics.Translucent
+xml backup_rules
+xml data_extraction_rules

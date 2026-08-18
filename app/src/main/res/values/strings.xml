@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Lyric Flow</string>
+    <string name="notification_service_name">Lyric Flow Media Tracker</string>
+    <string name="grant_notification_access">啟用通知與播放監聽權限</string>
+    <string name="grant_overlay_access">啟用鎖屏顯示與懸浮權限</string>
+    <string name="service_running">正在監聽音樂播放並同步歌詞</string>
+    <string name="no_media_playing">目前無音樂播放</string>
+    <string name="searching_lyrics">正在搜尋歌詞…</string>
+    <string name="no_lyrics_found">未找到動態歌詞</string>
+    <string name="swipe_up_to_dismiss">向上滑動關閉 / 進行解鎖</string>
+</resources>
