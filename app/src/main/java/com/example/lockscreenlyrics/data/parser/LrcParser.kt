@@ -4,8 +4,8 @@ import com.example.lockscreenlyrics.data.model.LyricLine
 import java.util.regex.Pattern
 
 object LrcParser {
-    // 正則匹配 [mm:ss.xx] 或 [mm:ss.xxx] 或 [mm:ss]
-    private val TIME_TAG_PATTERN = Pattern.compile("\\[(\\d{1,2}):(\\d{1,2})(?:\\.(\\d{1,3}))?]")
+    // 正則匹配 [mm:ss.xx]、[mm:ss:xx]、[mm:ss.xxx] 或 [mm:ss]
+    private val TIME_TAG_PATTERN = Pattern.compile("\\[(\\d{1,2}):(\\d{1,2})(?:[.:](\\d{1,3}))?]")
     private val OFFSET_PATTERN = Pattern.compile("\\[offset:([+-]?\\d+)]", Pattern.CASE_INSENSITIVE)
 
     /**
