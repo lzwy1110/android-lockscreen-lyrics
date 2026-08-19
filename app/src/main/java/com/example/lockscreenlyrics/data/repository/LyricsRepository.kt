@@ -604,13 +604,43 @@ object LyricsRepository {
             if ((normTarget.contains(normCandidate) || normCandidate.contains(normTarget)) && rRatio >= 0.75) {
                 return true
             }
+
+            // 編輯距離相似度 >= 85%（容許細微拼寫差異，如 14 個字元差 1 個字母）
+            if (calculateSimilarity(normTarget, normCandidate) >= 0.85) {
+                return true
+            }
         }
 
         return false
     }
 
     /**
-     * 音韻歸一化（統一處理日語與英語借詞中的 r/l 互通、y/i 互通、長音與特殊符號）
+     * 計算兩個字串的 Levenshtein 編輯距離相似度 (0.0 ~ 1.0)
+     */
+    private fun calculateSimilarity(s1: String, s2: String): Double {
+        if (s1 == s2) return 1.0
+        if (s1.isEmpty() || s2.isEmpty()) return 0.0
+
+        val dp = Array(s1.length + 1) { IntArray(s2.length + 1) }
+        for (i in 0..s1.length) dp[i][0] = i
+        for (j in 0..s2.length) dp[0][j] = j
+
+        for (i in 1..s1.length) {
+            for (j in 1..s2.length) {
+                val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
+                dp[i][j] = Math.min(
+                    Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1),
+                    dp[i - 1][j - 1] + cost
+                )
+            }
+        }
+
+        val maxLen = Math.max(s1.length, s2.length)
+        return 1.0 - (dp[s1.length][s2.length].toDouble() / maxLen.toDouble())
+    }
+
+    /**
+     * 音韻歸一化（統一處理日語長音 ou->o, uu->u, oo->o 以及 r/l, y/i 互通）
      */
     private fun normalizePhonetic(text: String): String {
         return text
@@ -618,6 +648,11 @@ object LyricsRepository {
             .replace('l', 'r')
             .replace('y', 'i')
             .replace("-", "")
+            .replace("ou", "o")
+            .replace("uu", "u")
+            .replace("oo", "o")
+            .replace("aa", "a")
+            .replace("ee", "e")
             .replace(Regex("[^a-z0-9]"), "")
     }
 
