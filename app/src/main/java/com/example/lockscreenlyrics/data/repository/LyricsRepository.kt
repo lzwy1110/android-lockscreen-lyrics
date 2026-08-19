@@ -287,6 +287,10 @@ object LyricsRepository {
                         if (isTitleValid && (containsEastAsianText(candidateSinger) || isDurationValid)) {
                             return item.get("songmid")?.asString
                         }
+                        // 3. 歌手精確吻合且歌曲時長精確吻合 (誤差 <= 2s) 時，直接命中
+                        if (isArtistValid && isDurationValid && durationSec > 0 && interval > 0 && Math.abs(durationSec - interval) <= 2) {
+                            return item.get("songmid")?.asString
+                        }
                     }
                 }
             }
@@ -390,6 +394,10 @@ object LyricsRepository {
                         }
                         // 2. 歌名嚴格匹配 (>= 75%)，且歌手為東亞漢字/假名或時長吻合時命中
                         if (isTitleValid && (containsEastAsianText(candidateArtists) || isDurationValid)) {
+                            return item.get("id")?.asLong
+                        }
+                        // 3. 歌手精確吻合且歌曲時長精確吻合 (誤差 <= 2s) 時，直接命中
+                        if (isArtistValid && isDurationValid && durationSec > 0 && candidateDurationSec > 0 && Math.abs(durationSec - candidateDurationSec) <= 2) {
                             return item.get("id")?.asLong
                         }
                     }

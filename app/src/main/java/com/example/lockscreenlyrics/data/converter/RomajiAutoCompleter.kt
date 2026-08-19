@@ -82,6 +82,16 @@ object RomajiAutoCompleter {
     fun convertToRomaji(text: String): String {
         if (text.isBlank()) return ""
 
+        // 優先檢查熟字訓與常用詞 (如: 田舎者 -> inakamono)
+        COMMON_JUKUJIKUN_MAP[text.trim()]?.let { return it }
+
+        var processedText = text
+        for ((k, v) in COMMON_JUKUJIKUN_MAP) {
+            if (processedText.contains(k)) {
+                processedText = processedText.replace(k, " $v ")
+            }
+        }
+
         val tok = tokenizer ?: try {
             Tokenizer().also { tokenizer = it }
         } catch (_: Exception) {
@@ -90,7 +100,7 @@ object RomajiAutoCompleter {
 
         if (tok != null) {
             try {
-                val tokens = tok.tokenize(text)
+                val tokens = tok.tokenize(processedText)
                 val words = mutableListOf<String>()
 
                 for (token in tokens) {
@@ -219,13 +229,28 @@ object RomajiAutoCompleter {
         "マ" to "ma", "ミ" to "mi", "ム" to "mu", "メ" to "me", "モ" to "mo",
         "ヤ" to "ya", "ユ" to "yu", "ヨ" to "yo",
         "ラ" to "ra", "リ" to "ri", "ル" to "ru", "レ" to "re", "ロ" to "ro",
-        "ワ" to "wa", "ヲ" to "wo", "ン" to "n",
-        "ガ" to "ga", "ギ" to "gi", "グ" to "gu", "ゲ" to "ge", "ご" to "go",
+        "ガ" to "ga", "ギ" to "gi", "グ" to "gu", "ゲ" to "ge", "ゴ" to "go",
         "ザ" to "za", "ジ" to "ji", "ズ" to "zu", "ゼ" to "ze", "ゾ" to "zo",
         "ダ" to "da", "ヂ" to "ji", "ヅ" to "zu", "デ" to "de", "ド" to "do",
         "バ" to "ba", "ビ" to "bi", "ブ" to "bu", "ベ" to "be", "ボ" to "bo",
         "パ" to "pa", "ピ" to "pi", "プ" to "pu", "ペ" to "pe", "ポ" to "po",
         "ー" to "-"
+    )
+
+    private val COMMON_JUKUJIKUN_MAP = mapOf(
+        "田舎者" to "inakamono",
+        "田舎" to "inaka",
+        "若者" to "wakamono",
+        "怠け者" to "namakemono",
+        "変わり者" to "kawarimono",
+        "恋人" to "koibito",
+        "旅人" to "tabibito",
+        "一人" to "hitori",
+        "二人" to "futari",
+        "大人" to "otona",
+        "今日" to "kyou",
+        "昨日" to "kinou",
+        "明日" to "ashita"
     )
 
     private val HIRAGANA_ROMAJI_MAP = mapOf(
