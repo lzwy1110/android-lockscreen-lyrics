@@ -39,9 +39,17 @@ object RomajiAutoCompleter {
     fun completeIfMissing(lines: List<LyricLine>): List<LyricLine> {
         if (lines.isEmpty()) return lines
 
-        // 1. 若已經有任一行具備羅馬拼音（代表平台已有官方音軌），維持原樣不做覆蓋
+        // 1. 若已經有任一行具備羅馬拼音（代表平台已有官方音軌），清洗其中的長音符號 (如 ā -> aa, a- -> aa) 後返回
         val hasOfficialRomaji = lines.any { !it.romaji.isNullOrBlank() }
-        if (hasOfficialRomaji) return lines
+        if (hasOfficialRomaji) {
+            return lines.map { line ->
+                if (!line.romaji.isNullOrBlank()) {
+                    line.copy(romaji = normalizeMacrons(line.romaji))
+                } else {
+                    line
+                }
+            }
+        }
 
         // 2. 檢查整首歌詞是否包含日語或韓文字元
         val needsTransliteration = lines.any { containsEastAsianText(it.text) }
@@ -52,7 +60,7 @@ object RomajiAutoCompleter {
             if (line.romaji.isNullOrBlank() && line.text.isNotBlank()) {
                 val generated = convertToRomaji(line.text)
                 if (generated.isNotBlank() && generated.lowercase() != line.text.lowercase()) {
-                    line.copy(romaji = generated)
+                    line.copy(romaji = normalizeMacrons(generated))
                 } else {
                     line
                 }
@@ -60,6 +68,19 @@ object RomajiAutoCompleter {
                 line
             }
         }
+    }
+
+    /**
+     * 長音符號歸一化（將 ā/ī/ū/ē/ō 或 a- 轉換為自然流暢的雙母音 aa/ii/uu/ee/ou）
+     */
+    fun normalizeMacrons(text: String): String {
+        return text
+            .replace("ā", "aa").replace("ī", "ii").replace("ū", "uu").replace("ē", "ee").replace("ō", "ou")
+            .replace("Ā", "Aa").replace("Ī", "Ii").replace("Ū", "Uu").replace("Ē", "Ee").replace("Ō", "Ou")
+            .replace(Regex("([aiueo])-", RegexOption.IGNORE_CASE)) { matchResult ->
+                val v = matchResult.groupValues[1]
+                "$v$v"
+            }
     }
 
     private fun containsEastAsianText(text: String): Boolean {
@@ -140,6 +161,20 @@ object RomajiAutoCompleter {
         val sb = StringBuilder()
         var i = 0
         while (i < katakana.length) {
+            // 長音符 ー / 〜 / ~: 沿用前一個母音進行母音延長 (例如 スター ➔ sutaa, テーマ ➔ teema, アー ➔ aa)
+            if (katakana[i] == 'ー' || katakana[i] == '〜' || katakana[i] == '~') {
+                if (sb.isNotEmpty()) {
+                    val lastChar = sb.last().lowercaseChar()
+                    if (lastChar in listOf('a', 'i', 'u', 'e', 'o')) {
+                        sb.append(lastChar)
+                    } else {
+                        sb.append('a')
+                    }
+                }
+                i++
+                continue
+            }
+
             // 雙假名（拗音，如 キャ, シュ, チョ）
             if (i + 1 < katakana.length) {
                 val two = katakana.substring(i, i + 2)
@@ -184,6 +219,20 @@ object RomajiAutoCompleter {
         val sb = StringBuilder()
         var i = 0
         while (i < text.length) {
+            // 長音符 ー / 〜 / ~
+            if (text[i] == 'ー' || text[i] == '〜' || text[i] == '~') {
+                if (sb.isNotEmpty()) {
+                    val lastChar = sb.last().lowercaseChar()
+                    if (lastChar in listOf('a', 'i', 'u', 'e', 'o')) {
+                        sb.append(lastChar)
+                    } else {
+                        sb.append('a')
+                    }
+                }
+                i++
+                continue
+            }
+
             if (i + 1 < text.length) {
                 val two = text.substring(i, i + 2)
                 val mappedTwo = KATAKANA_ROMAJI_MAP[two]
@@ -238,8 +287,7 @@ object RomajiAutoCompleter {
         "パ" to "pa", "ピ" to "pi", "プ" to "pu", "ペ" to "pe", "ポ" to "po",
         "ヴ" to "vu",
         "ァ" to "a", "ィ" to "i", "ゥ" to "u", "ェ" to "e", "ォ" to "o",
-        "ャ" to "ya", "ュ" to "yu", "ョ" to "yo", "ヮ" to "wa",
-        "ー" to "-"
+        "ャ" to "ya", "ュ" to "yu", "ョ" to "yo", "ヮ" to "wa"
     )
 
     private val COMMON_JUKUJIKUN_MAP = mapOf(
