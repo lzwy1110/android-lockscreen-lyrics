@@ -46,18 +46,7 @@ object LyricsRepository {
         // 1. 檢查記憶體快取
         memoryCache[cacheKey]?.let { return@withContext it }
 
-        // 2. 🥇 第一優先：嘗試 QQ 音樂（使用 Lyricify 同款現代 musicu.fcg 端點）
-        val qqLyrics = fetchFromQQMusic(cleanTitle, cleanArtist, durationSec)
-        val hasQQTranslation = qqLyrics.any { !it.translation.isNullOrBlank() }
-
-        if (qqLyrics.isNotEmpty() && hasQQTranslation) {
-            Log.d(TAG, "成功從 QQ 音樂取得雙語歌詞: $cleanTitle (${qqLyrics.size} 行，含翻譯)")
-            val result = wrapResult(qqLyrics, "QQ 音樂")
-            memoryCache[cacheKey] = result
-            return@withContext result
-        }
-
-        // 3. 🥈 第二優先：嘗試 網易雲音樂
+        // 2. 🥇 第一優先：嘗試 網易雲音樂（二次元、日語與社群雙語翻譯最齊全）
         val neteaseLyrics = fetchFromNetease(cleanTitle, cleanArtist, durationSec)
         val hasNeteaseTranslation = neteaseLyrics.any { !it.translation.isNullOrBlank() }
 
@@ -68,16 +57,27 @@ object LyricsRepository {
             return@withContext result
         }
 
-        // 4. 若兩者都沒有翻譯，退守使用有歌詞的來源
-        if (qqLyrics.isNotEmpty()) {
-            Log.d(TAG, "使用 QQ 音樂原版歌詞: $cleanTitle")
+        // 3. 🥈 第二優先：嘗試 QQ 音樂（使用 Lyricify 同款現代 musicu.fcg 端點）
+        val qqLyrics = fetchFromQQMusic(cleanTitle, cleanArtist, durationSec)
+        val hasQQTranslation = qqLyrics.any { !it.translation.isNullOrBlank() }
+
+        if (qqLyrics.isNotEmpty() && hasQQTranslation) {
+            Log.d(TAG, "成功從 QQ 音樂取得雙語歌詞: $cleanTitle (${qqLyrics.size} 行，含翻譯)")
             val result = wrapResult(qqLyrics, "QQ 音樂")
             memoryCache[cacheKey] = result
             return@withContext result
         }
+
+        // 4. 若兩者都沒有翻譯，退守使用有歌詞的來源（網易雲優先 -> QQ 音樂 -> LRCLIB）
         if (neteaseLyrics.isNotEmpty()) {
             Log.d(TAG, "使用 網易雲原版歌詞: $cleanTitle")
             val result = wrapResult(neteaseLyrics, "網易雲音樂")
+            memoryCache[cacheKey] = result
+            return@withContext result
+        }
+        if (qqLyrics.isNotEmpty()) {
+            Log.d(TAG, "使用 QQ 音樂原版歌詞: $cleanTitle")
+            val result = wrapResult(qqLyrics, "QQ 音樂")
             memoryCache[cacheKey] = result
             return@withContext result
         }
@@ -110,6 +110,11 @@ object LyricsRepository {
             var songMid = searchQQSongMid("$title $artist".trim(), title, artist, durationSec)
             if (songMid.isNullOrBlank() && primaryArtist.isNotBlank()) {
                 songMid = searchQQSongMid("$title $primaryArtist".trim(), title, primaryArtist, durationSec)
+            }
+            // 羅馬音歌手轉平假名備援搜尋 (例如: 紡ぐ Tota -> 紡ぐ とた)
+            val hiraArtist = RomajiAutoCompleter.romajiToHiragana(primaryArtist)
+            if (songMid.isNullOrBlank() && hiraArtist.isNotBlank() && hiraArtist != primaryArtist.lowercase()) {
+                songMid = searchQQSongMid("$title $hiraArtist".trim(), title, hiraArtist, durationSec)
             }
             if (songMid.isNullOrBlank()) {
                 songMid = searchQQSongMid(title, title, primaryArtist, durationSec)
@@ -406,6 +411,11 @@ object LyricsRepository {
             var songId = searchNeteaseSongId("$title $artist".trim(), title, artist, durationSec)
             if (songId == null && primaryArtist.isNotBlank()) {
                 songId = searchNeteaseSongId("$title $primaryArtist".trim(), title, primaryArtist, durationSec)
+            }
+            // 羅馬音歌手轉平假名備援搜尋 (例如: 紡ぐ Tota -> 紡ぐ とた)
+            val hiraArtist = RomajiAutoCompleter.romajiToHiragana(primaryArtist)
+            if (songId == null && hiraArtist.isNotBlank() && hiraArtist != primaryArtist.lowercase()) {
+                songId = searchNeteaseSongId("$title $hiraArtist".trim(), title, hiraArtist, durationSec)
             }
             if (songId == null) {
                 songId = searchNeteaseSongId(title, title, primaryArtist, durationSec)
