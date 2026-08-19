@@ -121,6 +121,10 @@ object LyricsRepository {
                     songMid = searchQQSongMid("$romajiTitle $primaryArtist".trim(), title, primaryArtist, durationSec)
                 }
             }
+            // 4. 純歌手備援搜尋（支援英日跨語言翻譯歌名，配合三重安全防護與時長鎖定）
+            if (songMid.isNullOrBlank() && durationSec > 0 && artist.isNotBlank()) {
+                songMid = searchQQByArtistFallback(artist, primaryArtist, title, durationSec)
+            }
 
             if (songMid.isNullOrBlank()) return emptyList()
 
@@ -299,6 +303,69 @@ object LyricsRepository {
     }
 
     /**
+     * QQ 音樂純歌手備援搜尋（用於英日跨語言翻譯歌名，如 Absolute Zero -> 絶対零度）
+     * 內建三重安全防護：多藝人交叉鎖定、副標題/關鍵字比對、時長防碰撞歧義拒絕
+     */
+    private fun searchQQByArtistFallback(artist: String, primaryArtist: String, targetTitle: String, durationSec: Int): String? {
+        val queryList = mutableListOf<String>()
+        val cleanA = artist.replace(",", " ").replace("、", " ").replace("&", " ").trim()
+        if (cleanA.isNotBlank()) queryList.add(cleanA)
+        if (primaryArtist.isNotBlank() && primaryArtist != cleanA) queryList.add(primaryArtist)
+
+        val secondaryArtists = artist.split(Regex("[,/&、]|feat\\.?"), 2).getOrNull(1)?.trim() ?: ""
+        if (secondaryArtists.isNotBlank()) queryList.add(secondaryArtists)
+
+        for (q in queryList) {
+            try {
+                val searchUrl = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?p=1&n=10&w=${URLEncoder.encode(q, "UTF-8")}&format=json"
+                val searchReq = Request.Builder()
+                    .url(searchUrl)
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .header("Referer", "https://y.qq.com/")
+                    .get()
+                    .build()
+
+                val searchResp = httpClient.newCall(searchReq).execute()
+                if (!searchResp.isSuccessful) continue
+
+                val searchBody = searchResp.body?.string() ?: continue
+                val searchJson = gson.fromJson(searchBody, JsonObject::class.java)
+                val songList = searchJson.getAsJsonObject("data")
+                    ?.getAsJsonObject("song")
+                    ?.getAsJsonArray("list") ?: continue
+
+                val matchingCandidates = mutableListOf<JsonObject>()
+                for (i in 0 until songList.size()) {
+                    val item = songList.get(i).asJsonObject
+                    val candidateSinger = item.getAsJsonArray("singer")
+                        ?.mapNotNull { it.asJsonObject.get("name")?.asString }
+                        ?.joinToString(", ") ?: ""
+                    val interval = item.get("interval")?.asInt ?: 0
+                    val candidateName = item.get("songname")?.asString ?: ""
+
+                    val isArtistValid = isArtistMatch(artist, candidateSinger) || isArtistMatch(primaryArtist, candidateSinger)
+                    val isDurationExact = Math.abs(durationSec - interval) <= 2
+
+                    if (isArtistValid && isDurationExact) {
+                        // 包含目標歌名或副歌手關鍵字（如 Cereus / Absolute Zero）直接命中
+                        if (candidateName.contains(targetTitle, ignoreCase = true) ||
+                            (secondaryArtists.isNotBlank() && candidateName.contains(secondaryArtists, ignoreCase = true))) {
+                            return item.get("songmid")?.asString
+                        }
+                        matchingCandidates.add(item)
+                    }
+                }
+
+                // 🌟 時長防碰撞歧義拒絕機制：若唯一命中則安全採用，若有多首不同歌名則拒絕盲猜
+                if (matchingCandidates.size == 1) {
+                    return matchingCandidates[0].get("songmid")?.asString
+                }
+            } catch (_: Exception) {}
+        }
+        return null
+    }
+
+    /**
      * 自動判斷並解碼 LRC 文字（支援 Base64 或純文字，過濾 HTML 實體字元）
      */
     private fun decodeLrcText(input: String?): String {
@@ -347,6 +414,10 @@ object LyricsRepository {
                 if (romajiTitle.isNotBlank() && romajiTitle.lowercase() != title.lowercase()) {
                     songId = searchNeteaseSongId("$romajiTitle $primaryArtist".trim(), title, primaryArtist, durationSec)
                 }
+            }
+            // 4. 純歌手備援搜尋（支援英日跨語言翻譯歌名，配合三重安全防護與時長鎖定）
+            if (songId == null && durationSec > 0 && artist.isNotBlank()) {
+                songId = searchNeteaseByArtistFallback(artist, primaryArtist, title, durationSec)
             }
 
             if (songId != null) {
@@ -449,6 +520,67 @@ object LyricsRepository {
             Log.w(TAG, "Netease lyric error: ${e.message}")
         }
         return emptyList()
+    }
+
+    /**
+     * 網易雲純歌手備援搜尋（用於英日跨語言翻譯歌名，如 Absolute Zero -> 絶対零度）
+     * 內建三重安全防護：多藝人交叉鎖定、副標題/關鍵字比對、時長防碰撞歧義拒絕
+     */
+    private fun searchNeteaseByArtistFallback(artist: String, primaryArtist: String, targetTitle: String, durationSec: Int): Long? {
+        val queryList = mutableListOf<String>()
+        val cleanA = artist.replace(",", " ").replace("、", " ").replace("&", " ").trim()
+        if (cleanA.isNotBlank()) queryList.add(cleanA)
+        if (primaryArtist.isNotBlank() && primaryArtist != cleanA) queryList.add(primaryArtist)
+
+        val secondaryArtists = artist.split(Regex("[,/&、]|feat\\.?"), 2).getOrNull(1)?.trim() ?: ""
+        if (secondaryArtists.isNotBlank()) queryList.add(secondaryArtists)
+
+        for (q in queryList) {
+            try {
+                val searchUrl = "https://music.163.com/api/search/get/web?csrf_token=&hlpretag=&hlposttag=&s=${URLEncoder.encode(q, "UTF-8")}&type=1&offset=0&total=true&limit=10"
+                val request = Request.Builder()
+                    .url(searchUrl)
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .header("Referer", "https://music.163.com/")
+                    .get()
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                if (!response.isSuccessful) continue
+
+                val body = response.body?.string() ?: continue
+                val json = gson.fromJson(body, JsonObject::class.java)
+                val songs = json.getAsJsonObject("result")?.getAsJsonArray("songs") ?: continue
+
+                val matchingCandidates = mutableListOf<JsonObject>()
+                for (i in 0 until songs.size()) {
+                    val item = songs.get(i).asJsonObject
+                    val candidateArtists = item.getAsJsonArray("artists")
+                        ?.mapNotNull { it.asJsonObject.get("name")?.asString }
+                        ?.joinToString(", ") ?: ""
+                    val dtMs = item.get("dt")?.asLong ?: 0L
+                    val candidateDurationSec = (dtMs / 1000).toInt()
+                    val candidateName = item.get("name")?.asString ?: ""
+
+                    val isArtistValid = isArtistMatch(artist, candidateArtists) || isArtistMatch(primaryArtist, candidateArtists)
+                    val isDurationExact = Math.abs(durationSec - candidateDurationSec) <= 2
+
+                    if (isArtistValid && isDurationExact) {
+                        if (candidateName.contains(targetTitle, ignoreCase = true) ||
+                            (secondaryArtists.isNotBlank() && candidateName.contains(secondaryArtists, ignoreCase = true))) {
+                            return item.get("id")?.asLong
+                        }
+                        matchingCandidates.add(item)
+                    }
+                }
+
+                // 🌟 時長防碰撞歧義拒絕機制：若唯一命中則安全採用，若有多首不同歌名則拒絕盲猜
+                if (matchingCandidates.size == 1) {
+                    return matchingCandidates[0].get("id")?.asLong
+                }
+            } catch (_: Exception) {}
+        }
+        return null
     }
 
     /**
