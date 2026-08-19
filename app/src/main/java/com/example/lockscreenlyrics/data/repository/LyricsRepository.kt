@@ -565,7 +565,6 @@ object LyricsRepository {
                         ?.joinToString(", ") ?: ""
                     val dtMs = item.get("dt")?.asLong ?: 0L
                     val candidateDurationSec = (dtMs / 1000).toInt()
-                    val candidateName = item.get("name")?.asString ?: ""
 
                     val isArtistValid = isArtistMatch(artist, candidateArtists) || isArtistMatch(primaryArtist, candidateArtists)
                     val isDurationExact = Math.abs(durationSec - candidateDurationSec) <= 2
