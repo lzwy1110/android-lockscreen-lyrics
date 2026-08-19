@@ -55,6 +55,7 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.coil.compose)
     implementation(libs.opencc)
+    implementation(libs.kuromoji)
 
     debugImplementation(libs.androidx.ui.tooling)
 }
