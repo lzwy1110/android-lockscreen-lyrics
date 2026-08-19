@@ -466,30 +466,44 @@ private fun AlbumCoverView(bitmap: Bitmap?, artUri: String?) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(horizontal = 28.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
+        val coverShape = RoundedCornerShape(20.dp)
+        val imageModifier = Modifier
+            .aspectRatio(1f)
+            .shadow(elevation = 16.dp, shape = coverShape, spotColor = Color.Black)
+            .clip(coverShape)
+
         if (bitmap != null) {
             Image(
                 bitmap = bitmap.asImageBitmap(),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
+                contentDescription = "Album Cover",
+                modifier = imageModifier,
+                contentScale = ContentScale.Fit
             )
         } else if (!artUri.isNullOrBlank()) {
             AsyncImage(
                 model = artUri,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
+                contentDescription = "Album Cover",
+                modifier = imageModifier,
+                contentScale = ContentScale.Fit
             )
         } else {
-            Icon(
-                imageVector = Icons.Rounded.Album,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(80.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .aspectRatio(1f)
+                    .clip(coverShape)
+                    .background(Color(0x26FFFFFF)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Album,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.6f),
+                    modifier = Modifier.size(80.dp)
+                )
+            }
         }
     }
 }
