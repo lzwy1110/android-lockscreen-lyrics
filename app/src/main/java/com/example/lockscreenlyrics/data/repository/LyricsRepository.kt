@@ -49,7 +49,7 @@ object LyricsRepository {
 
         if (qqLyrics.isNotEmpty() && hasQQTranslation) {
             Log.d(TAG, "成功從 QQ 音樂取得雙語歌詞: $cleanTitle (${qqLyrics.size} 行，含翻譯)")
-            val result = LyricSearchResult(qqLyrics, "QQ 音樂")
+            val result = wrapResult(qqLyrics, "QQ 音樂")
             memoryCache[cacheKey] = result
             return@withContext result
         }
@@ -60,7 +60,7 @@ object LyricsRepository {
 
         if (neteaseLyrics.isNotEmpty() && hasNeteaseTranslation) {
             Log.d(TAG, "成功從 網易雲音樂取得雙語歌詞: $cleanTitle (${neteaseLyrics.size} 行，含翻譯)")
-            val result = LyricSearchResult(neteaseLyrics, "網易雲音樂")
+            val result = wrapResult(neteaseLyrics, "網易雲音樂")
             memoryCache[cacheKey] = result
             return@withContext result
         }
@@ -68,13 +68,13 @@ object LyricsRepository {
         // 4. 若兩者都沒有翻譯，退守使用有歌詞的來源
         if (qqLyrics.isNotEmpty()) {
             Log.d(TAG, "使用 QQ 音樂原版歌詞: $cleanTitle")
-            val result = LyricSearchResult(qqLyrics, "QQ 音樂")
+            val result = wrapResult(qqLyrics, "QQ 音樂")
             memoryCache[cacheKey] = result
             return@withContext result
         }
         if (neteaseLyrics.isNotEmpty()) {
             Log.d(TAG, "使用 網易雲原版歌詞: $cleanTitle")
-            val result = LyricSearchResult(neteaseLyrics, "網易雲音樂")
+            val result = wrapResult(neteaseLyrics, "網易雲音樂")
             memoryCache[cacheKey] = result
             return@withContext result
         }
@@ -83,12 +83,17 @@ object LyricsRepository {
         val lrclibLyrics = fetchFromLrclib(cleanTitle, cleanArtist, durationSec)
         if (lrclibLyrics.isNotEmpty()) {
             Log.d(TAG, "使用 LRCLIB 歌詞: $cleanTitle")
-            val result = LyricSearchResult(lrclibLyrics, "LRCLIB")
+            val result = wrapResult(lrclibLyrics, "LRCLIB")
             memoryCache[cacheKey] = result
             return@withContext result
         }
 
         LyricSearchResult()
+    }
+
+    private fun wrapResult(lines: List<LyricLine>, source: String): LyricSearchResult {
+        val completedLines = com.example.lockscreenlyrics.data.converter.RomajiAutoCompleter.completeIfMissing(lines)
+        return LyricSearchResult(completedLines, source)
     }
 
     /**
