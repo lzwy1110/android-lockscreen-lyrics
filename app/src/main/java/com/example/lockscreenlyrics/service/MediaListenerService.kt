@@ -200,8 +200,8 @@ class MediaListenerService : NotificationListenerService() {
     private fun fetchLyricsForSong(title: String, artist: String, durationSec: Int) {
         serviceScope.launch {
             PlaybackStateHolder.setSearching(true)
-            val lyrics = LyricsRepository.getLyrics(title, artist, durationSec)
-            PlaybackStateHolder.updateLyrics(lyrics)
+            val result = LyricsRepository.getLyrics(title, artist, durationSec)
+            PlaybackStateHolder.updateLyrics(result.lines, result.source)
             PlaybackStateHolder.setSearching(false)
         }
     }

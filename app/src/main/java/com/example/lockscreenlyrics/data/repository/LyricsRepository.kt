@@ -16,6 +16,11 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
+data class LyricSearchResult(
+    val lines: List<LyricLine> = emptyList(),
+    val source: String = ""
+)
+
 object LyricsRepository {
     private const val TAG = "LyricsRepository"
 
@@ -25,12 +30,12 @@ object LyricsRepository {
         .build()
 
     private val gson = Gson()
-    private val memoryCache = mutableMapOf<String, List<LyricLine>>()
+    private val memoryCache = mutableMapOf<String, LyricSearchResult>()
 
     /**
      * 智慧獲取動態歌詞（優先選擇「具有雙語翻譯」的來源：QQ 音樂 ⇄ 網易雲 雙向智慧兜底）
      */
-    suspend fun getLyrics(title: String, artist: String, durationSec: Int = 0): List<LyricLine> = withContext(Dispatchers.IO) {
+    suspend fun getLyrics(title: String, artist: String, durationSec: Int = 0): LyricSearchResult = withContext(Dispatchers.IO) {
         val cleanTitle = cleanSongTitle(title)
         val cleanArtist = artist.trim()
         val cacheKey = "$cleanTitle-$cleanArtist".lowercase()
@@ -44,8 +49,9 @@ object LyricsRepository {
 
         if (qqLyrics.isNotEmpty() && hasQQTranslation) {
             Log.d(TAG, "成功從 QQ 音樂取得雙語歌詞: $cleanTitle (${qqLyrics.size} 行，含翻譯)")
-            memoryCache[cacheKey] = qqLyrics
-            return@withContext qqLyrics
+            val result = LyricSearchResult(qqLyrics, "QQ 音樂")
+            memoryCache[cacheKey] = result
+            return@withContext result
         }
 
         // 3. 🥈 第二優先：嘗試 網易雲音樂
@@ -54,31 +60,35 @@ object LyricsRepository {
 
         if (neteaseLyrics.isNotEmpty() && hasNeteaseTranslation) {
             Log.d(TAG, "成功從 網易雲音樂取得雙語歌詞: $cleanTitle (${neteaseLyrics.size} 行，含翻譯)")
-            memoryCache[cacheKey] = neteaseLyrics
-            return@withContext neteaseLyrics
+            val result = LyricSearchResult(neteaseLyrics, "網易雲音樂")
+            memoryCache[cacheKey] = result
+            return@withContext result
         }
 
         // 4. 若兩者都沒有翻譯，退守使用有歌詞的來源
         if (qqLyrics.isNotEmpty()) {
             Log.d(TAG, "使用 QQ 音樂原版歌詞: $cleanTitle")
-            memoryCache[cacheKey] = qqLyrics
-            return@withContext qqLyrics
+            val result = LyricSearchResult(qqLyrics, "QQ 音樂")
+            memoryCache[cacheKey] = result
+            return@withContext result
         }
         if (neteaseLyrics.isNotEmpty()) {
             Log.d(TAG, "使用 網易雲原版歌詞: $cleanTitle")
-            memoryCache[cacheKey] = neteaseLyrics
-            return@withContext neteaseLyrics
+            val result = LyricSearchResult(neteaseLyrics, "網易雲音樂")
+            memoryCache[cacheKey] = result
+            return@withContext result
         }
 
         // 5. 🥉 第三優先：嘗試 LRCLIB 開源歌詞庫
         val lrclibLyrics = fetchFromLrclib(cleanTitle, cleanArtist, durationSec)
         if (lrclibLyrics.isNotEmpty()) {
             Log.d(TAG, "使用 LRCLIB 歌詞: $cleanTitle")
-            memoryCache[cacheKey] = lrclibLyrics
-            return@withContext lrclibLyrics
+            val result = LyricSearchResult(lrclibLyrics, "LRCLIB")
+            memoryCache[cacheKey] = result
+            return@withContext result
         }
 
-        emptyList()
+        LyricSearchResult()
     }
 
     /**

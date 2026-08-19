@@ -89,6 +89,7 @@ fun LockscreenLyricScreen(
     val lyrics by PlaybackStateHolder.lyrics.collectAsState()
     val activeIndex by PlaybackStateHolder.activeLyricIndex.collectAsState()
     val isSearching by PlaybackStateHolder.isSearching.collectAsState()
+    val lyricSource by PlaybackStateHolder.lyricSource.collectAsState()
 
     // 讀取使用者自訂偏好
     val showTranslation by AppSettings.showTranslation.collectAsState()
@@ -279,6 +280,19 @@ fun LockscreenLyricScreen(
                                         )
                                     )
                             )
+
+                            // 右下角小字標註歌詞來源（如：歌詞來源：QQ 音樂 / 網易雲音樂）
+                            if (lyricSource.isNotBlank()) {
+                                Text(
+                                    text = "歌詞來源：$lyricSource",
+                                    color = Color(0x73FFFFFF),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(end = 12.dp, bottom = 6.dp)
+                                )
+                            }
                         }
                     }
                 } else {

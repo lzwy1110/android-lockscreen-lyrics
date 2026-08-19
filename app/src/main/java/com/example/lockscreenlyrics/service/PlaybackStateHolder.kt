@@ -14,6 +14,9 @@ object PlaybackStateHolder {
     private val _lyrics = MutableStateFlow<List<LyricLine>>(emptyList())
     val lyrics: StateFlow<List<LyricLine>> = _lyrics.asStateFlow()
 
+    private val _lyricSource = MutableStateFlow("")
+    val lyricSource: StateFlow<String> = _lyricSource.asStateFlow()
+
     private val _activeLyricIndex = MutableStateFlow(0)
     val activeLyricIndex: StateFlow<Int> = _activeLyricIndex.asStateFlow()
 
@@ -29,8 +32,9 @@ object PlaybackStateHolder {
         _currentSong.value = song
     }
 
-    fun updateLyrics(lines: List<LyricLine>) {
+    fun updateLyrics(lines: List<LyricLine>, source: String = "") {
         _lyrics.value = lines
+        _lyricSource.value = source
     }
 
     fun updateActiveIndex(index: Int) {
