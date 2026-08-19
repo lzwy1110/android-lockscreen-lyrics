@@ -1,40 +1,56 @@
 package com.example.lockscreenlyrics.data.converter
 
-import android.icu.text.Transliterator
-import android.os.Build
+import android.content.Context
+import android.util.Log
 import com.example.lockscreenlyrics.data.model.LyricLine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.io.BufferedReader
+import java.io.InputStreamReader
 
 /**
- * 智慧羅馬拼音自動補全器 (Romaji Auto-Completer)
+ * 智慧日語漢字與假名羅馬音自動補全器 (Japanese Romaji Auto-Completer)
  * 
- * 優先採用平台官方校對的羅馬音軌；
- * 當偵測到日語假名或韓文字元且無官方音軌時，自動透過 Android 系統底層 ICU 引擎與赫本假名表即時補全。
+ * 採用標準 Unicode Unihan 漢字日語訓讀/音讀對照表 + 赫本式假名映射，
+ * 徹底解決「日文歌漢字被誤轉為中文漢語拼音」的問題（如：風 ➔ kaze，而非 feng）。
  */
 object RomajiAutoCompleter {
+    private const val TAG = "RomajiAutoCompleter"
+    private val kanjiMap = HashMap<String, String>(14000)
+    private var isInitialized = false
 
-    // 系統底層 ICU 國際化文字轉換引擎（Android 7.0+ 內建，0KB 體積）
-    private val icuTransliterator: Transliterator? by lazy {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+    fun init(context: Context) {
+        if (isInitialized) return
+        CoroutineScope(Dispatchers.IO).launch {
             try {
-                Transliterator.getInstance("Any-Latin; Latin-ASCII")
-            } catch (_: Exception) {
-                try {
-                    Transliterator.getInstance("Any-Latin")
-                } catch (_: Exception) {
-                    null
+                context.assets.open("kanji_romaji.tsv").use { inputStream ->
+                    BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
+                        var line: String? = reader.readLine()
+                        while (line != null) {
+                            val trimmed = line.trim()
+                            if (trimmed.isNotEmpty()) {
+                                val idx = trimmed.indexOf('\t')
+                                if (idx > 0) {
+                                    val k = trimmed.substring(0, idx)
+                                    val v = trimmed.substring(idx + 1)
+                                    kanjiMap[k] = v
+                                }
+                            }
+                            line = reader.readLine()
+                        }
+                    }
                 }
+                isInitialized = true
+                Log.d(TAG, "已成功載入 ${kanjiMap.size} 個漢字日語讀音")
+            } catch (e: Exception) {
+                Log.w(TAG, "載入漢字對照表失敗: ${e.message}")
             }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            try {
-                Transliterator.getInstance("Any-Latin")
-            } catch (_: Exception) {
-                null
-            }
-        } else null
+        }
     }
 
     /**
-     * 若歌詞缺少羅馬音軌，自動掃描並逐行補全
+     * 若歌詞缺少羅馬音軌，自動掃描並逐行補全日語音軌
      */
     fun completeIfMissing(lines: List<LyricLine>): List<LyricLine> {
         if (lines.isEmpty()) return lines
@@ -43,11 +59,11 @@ object RomajiAutoCompleter {
         val hasOfficialRomaji = lines.any { !it.romaji.isNullOrBlank() }
         if (hasOfficialRomaji) return lines
 
-        // 2. 檢查整首歌詞是否包含日語假名或韓文
-        val needsTransliteration = lines.any { containsKanaOrHangul(it.text) }
+        // 2. 檢查整首歌詞是否包含日語假名或韓文字元
+        val needsTransliteration = lines.any { containsEastAsianText(it.text) }
         if (!needsTransliteration) return lines
 
-        // 3. 逐行生成平滑的羅馬拼音音軌
+        // 3. 逐行生成平滑的日語羅馬音
         return lines.map { line ->
             if (line.romaji.isNullOrBlank() && line.text.isNotBlank()) {
                 val generated = convertToRomaji(line.text)
@@ -62,10 +78,7 @@ object RomajiAutoCompleter {
         }
     }
 
-    /**
-     * 判斷字串中是否包含日語平假名、片假名或韓文字元
-     */
-    private fun containsKanaOrHangul(text: String): Boolean {
+    private fun containsEastAsianText(text: String): Boolean {
         for (ch in text) {
             val code = ch.code
             // 平假名 (0x3040..0x309F) 與 片假名 (0x30A0..0x30FF)
@@ -77,56 +90,72 @@ object RomajiAutoCompleter {
     }
 
     /**
-     * 將日文/韓文文字轉為流暢的標準羅馬拼音
+     * 將日文（漢字+假名）精確轉為純正的日語羅馬音（如：風のたより ➔ kaze no tayori）
      */
     fun convertToRomaji(text: String): String {
         if (text.isBlank()) return ""
 
-        val raw = try {
-            icuTransliterator?.transliterate(text) ?: kanaFallback(text)
-        } catch (_: Exception) {
-            kanaFallback(text)
+        val tokens = ArrayList<String>()
+        var i = 0
+        while (i < text.length) {
+            // 1. 優先匹配雙假名組合 (如: きゃ, しゅ, ちょ)
+            if (i + 1 < text.length) {
+                val two = text.substring(i, i + 2)
+                val mappedTwo = KANA_COMBO_MAP[two]
+                if (mappedTwo != null) {
+                    tokens.add(mappedTwo)
+                    i += 2
+                    continue
+                }
+                // 雙漢字詞組 (如: 世界, 約束, 永遠)
+                val compound = kanjiMap[two]
+                if (compound != null) {
+                    tokens.add(compound)
+                    i += 2
+                    continue
+                }
+            }
+
+            // 2. 匹配單個假名
+            val charStr = text[i].toString()
+            val mappedKana = KANA_SINGLE_MAP[charStr]
+            if (mappedKana != null) {
+                // 促音 っ/ッ 處理
+                if (charStr == "っ" || charStr == "ッ") {
+                    if (i + 1 < text.length) {
+                        val nextKana = KANA_SINGLE_MAP[text[i + 1].toString()]
+                        if (!nextKana.isNullOrBlank()) {
+                            tokens.add(nextKana[0].toString())
+                        }
+                    }
+                } else {
+                    tokens.add(mappedKana)
+                }
+                i++
+                continue
+            }
+
+            // 3. 匹配單個漢字 (優先日語訓讀/音讀，如: 風 ➔ kaze, 窓 ➔ mado, 花 ➔ hana)
+            val mappedKanji = kanjiMap[charStr]
+            if (mappedKanji != null) {
+                tokens.add(mappedKanji)
+                i++
+                continue
+            }
+
+            // 4. 英數字與標點符號直接保留
+            tokens.add(charStr)
+            i++
         }
 
-        return formatRomaji(raw)
+        return formatRomaji(tokens.joinToString(" "))
     }
 
-    /**
-     * 美化羅馬拼音格式（壓縮多餘空格、移除不必要符號）
-     */
     private fun formatRomaji(input: String): String {
         return input
             .replace(Regex("[·・~～]"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
-    }
-
-    /**
-     * 輕量級五十音假名替換備援（當 ICU 引擎不可用時觸發）
-     */
-    private fun kanaFallback(text: String): String {
-        val sb = StringBuilder()
-        var i = 0
-        while (i < text.length) {
-            if (i + 1 < text.length) {
-                val two = text.substring(i, i + 2)
-                val mappedTwo = KANA_COMBO_MAP[two]
-                if (mappedTwo != null) {
-                    sb.append(mappedTwo).append(" ")
-                    i += 2
-                    continue
-                }
-            }
-            val one = text[i].toString()
-            val mappedOne = KANA_SINGLE_MAP[one]
-            if (mappedOne != null) {
-                sb.append(mappedOne).append(" ")
-            } else {
-                sb.append(text[i])
-            }
-            i++
-        }
-        return sb.toString().trim()
     }
 
     private val KANA_COMBO_MAP = mapOf(
@@ -140,7 +169,18 @@ object RomajiAutoCompleter {
         "ぎゃ" to "gya", "ぎゅ" to "gyu", "ぎょ" to "gyo",
         "じゃ" to "ja",  "じゅ" to "ju",  "じょ" to "jo",
         "びゃ" to "bya", "びゅ" to "byu", "びょ" to "byo",
-        "ぴゃ" to "pya", "ぴゅ" to "pyu", "ぴょ" to "pyo"
+        "ぴゃ" to "pya", "ぴゅ" to "pyu", "ぴょ" to "pyo",
+        "キャ" to "kya", "キュ" to "kyu", "キョ" to "kyo",
+        "シャ" to "sha", "シュ" to "shu", "ショ" to "sho",
+        "チャ" to "cha", "チュ" to "chu", "チョ" to "cho",
+        "ニャ" to "nya", "ニュ" to "nyu", "ニョ" to "nyo",
+        "ヒャ" to "hya", "ヒュ" to "hyu", "ヒョ" to "hyo",
+        "ミャ" to "mya", "ミュ" to "myu", "ミョ" to "myo",
+        "リャ" to "rya", "リュ" to "ryu", "リョ" to "ryo",
+        "ギャ" to "gya", "ギュ" to "gyu", "ギョ" to "gyo",
+        "ジャ" to "ja",  "ジュ" to "ju",  "ジョ" to "jo",
+        "ビャ" to "bya", "ビュ" to "byu", "ビョ" to "byo",
+        "ピャ" to "pya", "ピュ" to "pyu", "ピョ" to "pyo"
     )
 
     private val KANA_SINGLE_MAP = mapOf(
@@ -156,8 +196,24 @@ object RomajiAutoCompleter {
         "わ" to "wa", "を" to "wo", "ん" to "n",
         "が" to "ga", "ぎ" to "gi", "ぐ" to "gu", "げ" to "ge", "ご" to "go",
         "ざ" to "za", "じ" to "ji", "ず" to "zu", "ぜ" to "ze", "ぞ" to "zo",
-        "だ" to "da", "ぢ" to "ji", "づ" to "zu", "で" to "de", "ど" to "do",
+        "だ" to "da", "ぢ" to "ji", "づ" to "zu", "де" to "de", "ど" to "do",
         "ば" to "ba", "び" to "bi", "ぶ" to "bu", "べ" to "be", "ぼ" to "bo",
-        "ぱ" to "pa", "ぴ" to "pi", "ぷ" to "pu", "ぺ" to "pe", "ぽ" to "po"
+        "ぱ" to "pa", "ぴ" to "pi", "ぷ" to "pu", "ぺ" to "pe", "ぽ" to "po",
+        "ア" to "a", "イ" to "i", "ウ" to "u", "エ" to "e", "オ" to "o",
+        "カ" to "ka", "キ" to "ki", "ク" to "ku", "ケ" to "ke", "コ" to "ko",
+        "サ" to "sa", "シ" to "shi", "ス" to "su", "セ" to "se", "ソ" to "so",
+        "タ" to "ta", "チ" to "chi", "ツ" to "tsu", "テ" to "te", "ト" to "to",
+        "ナ" to "na", "ニ" to "ni", "ヌ" to "nu", "ネ" to "ne", "ノ" to "no",
+        "ハ" to "ha", "ヒ" to "hi", "フ" to "fu", "ヘ" to "he", "ホ" to "ho",
+        "マ" to "ma", "ミ" to "mi", "ム" to "mu", "メ" to "me", "モ" to "mo",
+        "ヤ" to "ya", "ユ" to "yu", "ヨ" to "yo",
+        "ラ" to "ra", "リ" to "ri", "ル" to "ru", "レ" to "re", "ロ" to "ro",
+        "ワ" to "wa", "ヲ" to "wo", "ン" to "n",
+        "ガ" to "ga", "ギ" to "gi", "グ" to "gu", "ゲ" to "ge", "ゴ" to "go",
+        "ザ" to "za", "ジ" to "ji", "ズ" to "zu", "ゼ" to "ze", "ゾ" to "zo",
+        "ダ" to "da", "ヂ" to "ji", "ヅ" to "zu", "デ" to "de", "ド" to "do",
+        "バ" to "ba", "ビ" to "bi", "ブ" to "bu", "ベ" to "be", "ボ" to "bo",
+        "パ" to "pa", "ピ" to "pi", "プ" to "pu", "ペ" to "pe", "ポ" to "po",
+        "ー" to "-"
     )
 }

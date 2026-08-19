@@ -75,6 +75,9 @@ object AppSettings {
         _clockSizeSp.value = prefs.getInt(KEY_CLOCK_SIZE, 80)
         _lyricSizeSp.value = prefs.getInt(KEY_LYRIC_SIZE, 28)
         _bgDimPercent.value = prefs.getInt(KEY_BG_DIM, 65)
+
+        // 背景非阻塞預載入日語漢字音訓對照字典
+        com.example.lockscreenlyrics.data.converter.RomajiAutoCompleter.init(context)
     }
 
     fun setThemeColorHex(hex: String) {
