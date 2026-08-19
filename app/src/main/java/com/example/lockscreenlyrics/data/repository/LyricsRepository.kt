@@ -431,7 +431,7 @@ object LyricsRepository {
 
     private fun searchNeteaseSongId(query: String, targetTitle: String, targetArtist: String, durationSec: Int): Long? {
         try {
-            val searchUrl = "https://music.163.com/api/search/get/web?csrf_token=&hlpretag=&hlposttag=&s=${URLEncoder.encode(query, "UTF-8")}&type=1&offset=0&total=true&limit=5"
+            val searchUrl = "https://music.163.com/api/cloudsearch/pc?s=${URLEncoder.encode(query, "UTF-8")}&type=1&offset=0&limit=10"
             val request = Request.Builder()
                 .url(searchUrl)
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
@@ -449,7 +449,7 @@ object LyricsRepository {
                     for (i in 0 until songs.size()) {
                         val item = songs.get(i).asJsonObject
                         val candidateName = item.get("name")?.asString ?: ""
-                        val candidateArtists = item.getAsJsonArray("artists")
+                        val candidateArtists = (item.getAsJsonArray("ar") ?: item.getAsJsonArray("artists"))
                             ?.mapNotNull { it.asJsonObject.get("name")?.asString }
                             ?.joinToString(", ") ?: ""
                         val dtMs = item.get("dt")?.asLong ?: 0L
@@ -537,7 +537,7 @@ object LyricsRepository {
 
         for (q in queryList) {
             try {
-                val searchUrl = "https://music.163.com/api/search/get/web?csrf_token=&hlpretag=&hlposttag=&s=${URLEncoder.encode(q, "UTF-8")}&type=1&offset=0&total=true&limit=10"
+                val searchUrl = "https://music.163.com/api/cloudsearch/pc?s=${URLEncoder.encode(q, "UTF-8")}&type=1&offset=0&limit=10"
                 val request = Request.Builder()
                     .url(searchUrl)
                     .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
@@ -555,7 +555,7 @@ object LyricsRepository {
                 val matchingCandidates = mutableListOf<JsonObject>()
                 for (i in 0 until songs.size()) {
                     val item = songs.get(i).asJsonObject
-                    val candidateArtists = item.getAsJsonArray("artists")
+                    val candidateArtists = (item.getAsJsonArray("ar") ?: item.getAsJsonArray("artists"))
                         ?.mapNotNull { it.asJsonObject.get("name")?.asString }
                         ?.joinToString(", ") ?: ""
                     val dtMs = item.get("dt")?.asLong ?: 0L
