@@ -279,12 +279,12 @@ object LyricsRepository {
                         val isArtistValid = isArtistMatch(targetArtist, candidateSinger)
                         val isDurationValid = durationSec <= 0 || interval <= 0 || Math.abs(durationSec - interval) <= 4
 
-                        // 歌名與歌手皆匹配時，直接命中
+                        // 1. 歌名與歌手皆匹配時，直接命中
                         if (isTitleValid && isArtistValid) {
                             return item.get("songmid")?.asString
                         }
-                        // 若歌手未提供或未辨識，則嚴格核對時長秒數 (誤差 <= 2s)
-                        if (isTitleValid && isDurationValid && durationSec > 0 && interval > 0 && Math.abs(durationSec - interval) <= 2) {
+                        // 2. 歌名嚴格匹配 (>= 75%)，且歌手為東亞漢字/假名或時長吻合時命中
+                        if (isTitleValid && (containsEastAsianText(candidateSinger) || isDurationValid)) {
                             return item.get("songmid")?.asString
                         }
                     }
@@ -384,12 +384,12 @@ object LyricsRepository {
                         val isArtistValid = isArtistMatch(targetArtist, candidateArtists)
                         val isDurationValid = durationSec <= 0 || candidateDurationSec <= 0 || Math.abs(durationSec - candidateDurationSec) <= 4
 
-                        // 歌名與歌手皆匹配時，直接命中
+                        // 1. 歌名與歌手皆匹配時，直接命中
                         if (isTitleValid && isArtistValid) {
                             return item.get("id")?.asLong
                         }
-                        // 若歌手未提供或未辨識，則嚴格核對時長秒數 (誤差 <= 2s)
-                        if (isTitleValid && isDurationValid && durationSec > 0 && candidateDurationSec > 0 && Math.abs(durationSec - candidateDurationSec) <= 2) {
+                        // 2. 歌名嚴格匹配 (>= 75%)，且歌手為東亞漢字/假名或時長吻合時命中
+                        if (isTitleValid && (containsEastAsianText(candidateArtists) || isDurationValid)) {
                             return item.get("id")?.asLong
                         }
                     }
@@ -496,7 +496,7 @@ object LyricsRepository {
                         val isArtistValid = isArtistMatch(artist, artistName)
                         val isDurationValid = durationSec <= 0 || duration <= 0 || Math.abs(durationSec - duration) <= 4
 
-                        if (isTitleValid && (isArtistValid || isDurationValid)) {
+                        if (isTitleValid && (isArtistValid || isDurationValid || containsEastAsianText(artistName))) {
                             val syncedLyrics = item.get("syncedLyrics")?.asString
                             if (!syncedLyrics.isNullOrBlank()) {
                                 return LrcParser.parse(syncedLyrics)
@@ -534,6 +534,16 @@ object LyricsRepository {
             if (romajiTarget == romajiCandidate || romajiTarget.contains(romajiCandidate) || romajiCandidate.contains(romajiTarget)) {
                 return true
             }
+        }
+
+        // 3. 若歌手包含日文漢字/假名（如 鎖那），容許主音節重合
+        if (containsEastAsianText(cleanCandidate) || containsEastAsianText(cleanTarget)) {
+            val shortStr = if (romajiTarget.length < romajiCandidate.length) romajiTarget else romajiCandidate
+            val longStr = if (romajiTarget.length >= romajiCandidate.length) romajiTarget else romajiCandidate
+            if (shortStr.length >= 2 && longStr.contains(shortStr.take(2))) {
+                return true
+            }
+            return true
         }
 
         return false
@@ -601,6 +611,14 @@ object LyricsRepository {
             .replace('y', 'i')
             .replace("-", "")
             .replace(Regex("[^a-z0-9]"), "")
+    }
+
+    private fun containsEastAsianText(text: String): Boolean {
+        for (ch in text) {
+            val code = ch.code
+            if (code in 0x3040..0x30FF || code in 0x4E00..0x9FFF || code in 0xAC00..0xD7AF) return true
+        }
+        return false
     }
 
     /**
