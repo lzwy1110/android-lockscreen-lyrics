@@ -219,6 +219,7 @@ object RomajiAutoCompleter {
         "ピャ" to "pya", "ピュ" to "pyu", "ピョ" to "pyo",
         "ティ" to "ti",  "ディ" to "di",  "ファ" to "fa",  "フィ" to "fi", "フェ" to "fe", "フォ" to "fo",
         "ウィ" to "wi",  "ウェ" to "we",  "ウォ" to "wo",  "ヴァ" to "va", "ヴィ" to "vi", "ヴェ" to "ve", "ヴォ" to "vo",
+        "チェ" to "che", "シェ" to "she", "ジェ" to "je",  "トゥ" to "tu", "ドゥ" to "du", "フュ" to "fyu",
 
         "ア" to "a", "イ" to "i", "ウ" to "u", "エ" to "e", "オ" to "o",
         "カ" to "ka", "キ" to "ki", "ク" to "ku", "ケ" to "ke", "コ" to "ko",
@@ -229,11 +230,15 @@ object RomajiAutoCompleter {
         "マ" to "ma", "ミ" to "mi", "ム" to "mu", "メ" to "me", "モ" to "mo",
         "ヤ" to "ya", "ユ" to "yu", "ヨ" to "yo",
         "ラ" to "ra", "リ" to "ri", "ル" to "ru", "レ" to "re", "ロ" to "ro",
+        "ワ" to "wa", "ヰ" to "wi", "ヱ" to "we", "ヲ" to "o",  "ン" to "n",
         "ガ" to "ga", "ギ" to "gi", "グ" to "gu", "ゲ" to "ge", "ゴ" to "go",
         "ザ" to "za", "ジ" to "ji", "ズ" to "zu", "ゼ" to "ze", "ゾ" to "zo",
         "ダ" to "da", "ヂ" to "ji", "ヅ" to "zu", "デ" to "de", "ド" to "do",
         "バ" to "ba", "ビ" to "bi", "ブ" to "bu", "ベ" to "be", "ボ" to "bo",
         "パ" to "pa", "ピ" to "pi", "プ" to "pu", "ペ" to "pe", "ポ" to "po",
+        "ヴ" to "vu",
+        "ァ" to "a", "ィ" to "i", "ゥ" to "u", "ェ" to "e", "ォ" to "o",
+        "ャ" to "ya", "ュ" to "yu", "ョ" to "yo", "ヮ" to "wa",
         "ー" to "-"
     )
 
@@ -275,12 +280,14 @@ object RomajiAutoCompleter {
         "ま" to "ma", "み" to "mi", "む" to "mu", "め" to "me", "も" to "mo",
         "や" to "ya", "ゆ" to "yu", "よ" to "yo",
         "ら" to "ra", "り" to "ri", "る" to "ru", "れ" to "re", "ろ" to "ro",
-        "わ" to "wa", "を" to "wo", "ん" to "n",
+        "わ" to "wa", "を" to "o", "ん" to "n",
         "が" to "ga", "ぎ" to "gi", "ぐ" to "gu", "げ" to "ge", "ご" to "go",
         "ざ" to "za", "じ" to "ji", "ず" to "zu", "ぜ" to "ze", "ぞ" to "zo",
         "だ" to "da", "ぢ" to "ji", "づ" to "zu", "で" to "de", "ど" to "do",
         "ば" to "ba", "び" to "bi", "ぶ" to "bu", "べ" to "be", "ぼ" to "bo",
-        "ぱ" to "pa", "ぴ" to "pi", "ぷ" to "pu", "ぺ" to "pe", "ぽ" to "po"
+        "ぱ" to "pa", "ぴ" to "pi", "ぷ" to "pu", "ぺ" to "pe", "ぽ" to "po",
+        "ぁ" to "a", "ぃ" to "i", "ぅ" to "u", "ぇ" to "e", "ぉ" to "o",
+        "ゃ" to "ya", "ゅ" to "yu", "ょ" to "yo", "ゎ" to "wa"
     )
 
     private val ROMAJI_HIRAGANA_MAP = mapOf(
