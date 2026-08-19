@@ -106,19 +106,19 @@ object LyricsRepository {
         try {
             val primaryArtist = artist.split(Regex("[,/&、]|feat\\.?"), 2)[0].trim()
 
-            // 1. 搜尋 songmid（結合歌名校驗與秒數校驗）
-            var songMid = searchQQSongMid("$title $artist".trim(), title, durationSec)
+            // 1. 搜尋 songmid（結合歌名、歌手與秒數校驗）
+            var songMid = searchQQSongMid("$title $artist".trim(), title, artist, durationSec)
             if (songMid.isNullOrBlank() && primaryArtist.isNotBlank()) {
-                songMid = searchQQSongMid("$title $primaryArtist".trim(), title, durationSec)
+                songMid = searchQQSongMid("$title $primaryArtist".trim(), title, primaryArtist, durationSec)
             }
             if (songMid.isNullOrBlank()) {
-                songMid = searchQQSongMid(title, title, durationSec)
+                songMid = searchQQSongMid(title, title, primaryArtist, durationSec)
             }
-            // 雙向羅馬音關鍵字備援搜尋
+            // 雙向羅馬音備援搜尋
             if (songMid.isNullOrBlank()) {
                 val romajiTitle = RomajiAutoCompleter.convertToRomaji(title)
                 if (romajiTitle.isNotBlank() && romajiTitle.lowercase() != title.lowercase()) {
-                    songMid = searchQQSongMid("$romajiTitle $primaryArtist".trim(), title, durationSec)
+                    songMid = searchQQSongMid("$romajiTitle $primaryArtist".trim(), title, primaryArtist, durationSec)
                 }
             }
 
@@ -246,9 +246,9 @@ object LyricsRepository {
     }
 
     /**
-     * 搜尋 QQ 音樂 songmid（取得前 5 筆，透過歌名相似度與秒數校驗嚴格過濾）
+     * 搜尋 QQ 音樂 songmid（取得前 5 筆，透過歌名相似度、歌手吻合與秒數校驗嚴格過濾）
      */
-    private fun searchQQSongMid(query: String, targetTitle: String, durationSec: Int): String? {
+    private fun searchQQSongMid(query: String, targetTitle: String, targetArtist: String, durationSec: Int): String? {
         try {
             val searchUrl = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?p=1&n=5&w=${URLEncoder.encode(query, "UTF-8")}&format=json"
             val searchReq = Request.Builder()
@@ -270,14 +270,21 @@ object LyricsRepository {
                     for (i in 0 until songList.size()) {
                         val item = songList.get(i).asJsonObject
                         val candidateName = item.get("songname")?.asString ?: ""
+                        val candidateSinger = item.getAsJsonArray("singer")
+                            ?.mapNotNull { it.asJsonObject.get("name")?.asString }
+                            ?.joinToString(", ") ?: ""
                         val interval = item.get("interval")?.asInt ?: 0
 
                         val isTitleValid = isTitleMatch(targetTitle, candidateName)
+                        val isArtistValid = isArtistMatch(targetArtist, candidateSinger)
                         val isDurationValid = durationSec <= 0 || interval <= 0 || Math.abs(durationSec - interval) <= 4
 
-                        if (isTitleValid) {
+                        // 歌名與歌手皆匹配時，直接命中
+                        if (isTitleValid && isArtistValid) {
                             return item.get("songmid")?.asString
-                        } else if (isDurationValid && durationSec > 0 && interval > 0 && Math.abs(durationSec - interval) <= 2) {
+                        }
+                        // 若歌手未提供或未辨識，則嚴格核對時長秒數 (誤差 <= 2s)
+                        if (isTitleValid && isDurationValid && durationSec > 0 && interval > 0 && Math.abs(durationSec - interval) <= 2) {
                             return item.get("songmid")?.asString
                         }
                     }
@@ -322,19 +329,19 @@ object LyricsRepository {
         try {
             val primaryArtist = artist.split(Regex("[,/&、]|feat\\.?"), 2)[0].trim()
 
-            // 1. 搜尋 songId（結合歌名校驗與秒數校驗）
-            var songId = searchNeteaseSongId("$title $artist".trim(), title, durationSec)
+            // 1. 搜尋 songId（結合歌名、歌手與秒數校驗）
+            var songId = searchNeteaseSongId("$title $artist".trim(), title, artist, durationSec)
             if (songId == null && primaryArtist.isNotBlank()) {
-                songId = searchNeteaseSongId("$title $primaryArtist".trim(), title, durationSec)
+                songId = searchNeteaseSongId("$title $primaryArtist".trim(), title, primaryArtist, durationSec)
             }
             if (songId == null) {
-                songId = searchNeteaseSongId(title, title, durationSec)
+                songId = searchNeteaseSongId(title, title, primaryArtist, durationSec)
             }
-            // 雙向羅馬音關鍵字備援搜尋
+            // 雙向羅馬音備援搜尋
             if (songId == null) {
                 val romajiTitle = RomajiAutoCompleter.convertToRomaji(title)
                 if (romajiTitle.isNotBlank() && romajiTitle.lowercase() != title.lowercase()) {
-                    songId = searchNeteaseSongId("$romajiTitle $primaryArtist".trim(), title, durationSec)
+                    songId = searchNeteaseSongId("$romajiTitle $primaryArtist".trim(), title, primaryArtist, durationSec)
                 }
             }
 
@@ -347,7 +354,7 @@ object LyricsRepository {
         return emptyList()
     }
 
-    private fun searchNeteaseSongId(query: String, targetTitle: String, durationSec: Int): Long? {
+    private fun searchNeteaseSongId(query: String, targetTitle: String, targetArtist: String, durationSec: Int): Long? {
         try {
             val searchUrl = "https://music.163.com/api/search/get/web?csrf_token=&hlpretag=&hlposttag=&s=${URLEncoder.encode(query, "UTF-8")}&type=1&offset=0&total=true&limit=5"
             val request = Request.Builder()
@@ -367,15 +374,22 @@ object LyricsRepository {
                     for (i in 0 until songs.size()) {
                         val item = songs.get(i).asJsonObject
                         val candidateName = item.get("name")?.asString ?: ""
+                        val candidateArtists = item.getAsJsonArray("artists")
+                            ?.mapNotNull { it.asJsonObject.get("name")?.asString }
+                            ?.joinToString(", ") ?: ""
                         val dtMs = item.get("dt")?.asLong ?: 0L
                         val candidateDurationSec = (dtMs / 1000).toInt()
 
                         val isTitleValid = isTitleMatch(targetTitle, candidateName)
+                        val isArtistValid = isArtistMatch(targetArtist, candidateArtists)
                         val isDurationValid = durationSec <= 0 || candidateDurationSec <= 0 || Math.abs(durationSec - candidateDurationSec) <= 4
 
-                        if (isTitleValid) {
+                        // 歌名與歌手皆匹配時，直接命中
+                        if (isTitleValid && isArtistValid) {
                             return item.get("id")?.asLong
-                        } else if (isDurationValid && durationSec > 0 && candidateDurationSec > 0 && Math.abs(durationSec - candidateDurationSec) <= 2) {
+                        }
+                        // 若歌手未提供或未辨識，則嚴格核對時長秒數 (誤差 <= 2s)
+                        if (isTitleValid && isDurationValid && durationSec > 0 && candidateDurationSec > 0 && Math.abs(durationSec - candidateDurationSec) <= 2) {
                             return item.get("id")?.asLong
                         }
                     }
@@ -475,12 +489,14 @@ object LyricsRepository {
                     for (i in 0 until jsonArray.size()) {
                         val item = jsonArray.get(i).asJsonObject
                         val trackName = item.get("trackName")?.asString ?: ""
+                        val artistName = item.get("artistName")?.asString ?: ""
                         val duration = item.get("duration")?.asDouble?.toInt() ?: 0
 
                         val isTitleValid = isTitleMatch(title, trackName)
+                        val isArtistValid = isArtistMatch(artist, artistName)
                         val isDurationValid = durationSec <= 0 || duration <= 0 || Math.abs(durationSec - duration) <= 4
 
-                        if (isTitleValid || isDurationValid) {
+                        if (isTitleValid && (isArtistValid || isDurationValid)) {
                             val syncedLyrics = item.get("syncedLyrics")?.asString
                             if (!syncedLyrics.isNullOrBlank()) {
                                 return LrcParser.parse(syncedLyrics)
@@ -496,7 +512,42 @@ object LyricsRepository {
     }
 
     /**
-     * 比對搜尋回傳的歌名與目標歌名是否一致（支援日語漢字、假名與羅馬音跨語言自動對齊）
+     * 比對歌手是否相符（支援日語漢字、假名、英文與羅馬音雙向對齊）
+     * 例如：Spotify 是 "sana"，網易雲是 "鎖那"，RomajiAutoCompleter("鎖那") = "sana" -> 100% Match!
+     */
+    private fun isArtistMatch(targetArtist: String, candidateArtist: String?): Boolean {
+        if (targetArtist.isBlank() || candidateArtist.isNullOrBlank()) return true
+
+        val cleanTarget = cleanArtistName(targetArtist).lowercase()
+        val cleanCandidate = cleanArtistName(candidateArtist).lowercase()
+
+        // 1. 直觀包含或相等
+        if (cleanTarget == cleanCandidate || cleanTarget.contains(cleanCandidate) || cleanCandidate.contains(cleanTarget)) {
+            return true
+        }
+
+        // 2. 羅馬音與音韻歸一化比對 (如：鎖那 vs sana)
+        val romajiTarget = normalizePhonetic(RomajiAutoCompleter.convertToRomaji(cleanTarget))
+        val romajiCandidate = normalizePhonetic(RomajiAutoCompleter.convertToRomaji(cleanCandidate))
+
+        if (romajiTarget.isNotBlank() && romajiCandidate.isNotBlank()) {
+            if (romajiTarget == romajiCandidate || romajiTarget.contains(romajiCandidate) || romajiCandidate.contains(romajiTarget)) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private fun cleanArtistName(artist: String): String {
+        return artist
+            .split(Regex("[,/&、]|feat\\.?|ft\\.?"), 2)[0]
+            .replace(Regex("[-–—_()（）\\[\\]]+"), " ")
+            .trim()
+    }
+
+    /**
+     * 比對歌名是否一致（杜絕短詞碰瓷，長度佔比需 >= 75% 且支援日文/羅馬音/音韻雙向對齊）
      */
     private fun isTitleMatch(targetTitle: String, candidateTitle: String?): Boolean {
         if (candidateTitle.isNullOrBlank()) return false
@@ -504,26 +555,52 @@ object LyricsRepository {
         val cleanTarget = cleanSongTitle(targetTitle).lowercase().trim()
         val cleanCandidate = cleanSongTitle(candidateTitle).lowercase().trim()
 
-        // 1. 直觀字串完全相等或包含
-        if (cleanTarget == cleanCandidate || cleanCandidate.contains(cleanTarget) || cleanTarget.contains(cleanCandidate)) {
+        if (cleanTarget.isEmpty() || cleanCandidate.isEmpty()) return false
+
+        // 1. 完全相等
+        if (cleanTarget == cleanCandidate) return true
+
+        // 2. 子字串包含，但嚴格限制長度比率 (>= 75%) 避免 "usotsuki emily" 誤中短詞 "emily"
+        val minLen = Math.min(cleanTarget.length, cleanCandidate.length).toDouble()
+        val maxLen = Math.max(cleanTarget.length, cleanCandidate.length).toDouble()
+        val lengthRatio = if (maxLen > 0) minLen / maxLen else 0.0
+
+        if ((cleanTarget.contains(cleanCandidate) || cleanCandidate.contains(cleanTarget)) && lengthRatio >= 0.75) {
             return true
         }
 
-        // 2. 羅馬音標準化比對 (如：風のたより vs Kaze no Tayori)
+        // 3. 羅馬音與音韻歸一化比對（支援：嘘つきエミリー ➔ usotsuki emily, 風のたより ➔ kaze no tayori）
         val romajiTarget = RomajiAutoCompleter.convertToRomaji(cleanTarget)
-            .lowercase()
-            .replace(Regex("[^a-z0-9]"), "")
         val romajiCandidate = RomajiAutoCompleter.convertToRomaji(cleanCandidate)
-            .lowercase()
-            .replace(Regex("[^a-z0-9]"), "")
 
-        if (romajiTarget.isNotBlank() && romajiCandidate.isNotBlank()) {
-            if (romajiTarget == romajiCandidate || romajiCandidate.contains(romajiTarget) || romajiTarget.contains(romajiCandidate)) {
+        val normTarget = normalizePhonetic(romajiTarget)
+        val normCandidate = normalizePhonetic(romajiCandidate)
+
+        if (normTarget.isNotBlank() && normCandidate.isNotBlank()) {
+            if (normTarget == normCandidate) return true
+
+            val rMinLen = Math.min(normTarget.length, normCandidate.length).toDouble()
+            val rMaxLen = Math.max(normTarget.length, normCandidate.length).toDouble()
+            val rRatio = if (rMaxLen > 0) rMinLen / rMaxLen else 0.0
+
+            if ((normTarget.contains(normCandidate) || normCandidate.contains(normTarget)) && rRatio >= 0.75) {
                 return true
             }
         }
 
         return false
+    }
+
+    /**
+     * 音韻歸一化（統一處理日語與英語借詞中的 r/l 互通、y/i 互通、長音與特殊符號）
+     */
+    private fun normalizePhonetic(text: String): String {
+        return text
+            .lowercase()
+            .replace('l', 'r')
+            .replace('y', 'i')
+            .replace("-", "")
+            .replace(Regex("[^a-z0-9]"), "")
     }
 
     /**
