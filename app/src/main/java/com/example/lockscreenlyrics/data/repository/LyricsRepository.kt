@@ -2,6 +2,8 @@ package com.example.lockscreenlyrics.data.repository
 
 import android.util.Base64
 import android.util.Log
+import com.example.lockscreenlyrics.data.converter.ChineseConverter
+import com.example.lockscreenlyrics.data.converter.RomajiAutoCompleter
 import com.example.lockscreenlyrics.data.model.LyricLine
 import com.example.lockscreenlyrics.data.parser.LrcParser
 import com.google.gson.Gson
@@ -14,6 +16,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 data class LyricSearchResult(
@@ -25,15 +28,15 @@ object LyricsRepository {
     private const val TAG = "LyricsRepository"
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(6, TimeUnit.SECONDS)
-        .readTimeout(6, TimeUnit.SECONDS)
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(7, TimeUnit.SECONDS)
         .build()
 
     private val gson = Gson()
-    private val memoryCache = mutableMapOf<String, LyricSearchResult>()
+    private val memoryCache = ConcurrentHashMap<String, LyricSearchResult>()
 
     /**
-     * 智慧獲取動態歌詞（優先選擇「具有雙語翻譯」的來源：QQ 音樂 ⇄ 網易雲 雙向智慧兜底）
+     * 獲取歌詞主入口：依照 QQ 音樂 (雙語優先) -> 網易雲音樂 (雙語優先) -> 原版歌詞 -> LRCLIB 依序退守
      */
     suspend fun getLyrics(title: String, artist: String, durationSec: Int = 0): LyricSearchResult = withContext(Dispatchers.IO) {
         val cleanTitle = cleanSongTitle(title)
@@ -44,7 +47,7 @@ object LyricsRepository {
         memoryCache[cacheKey]?.let { return@withContext it }
 
         // 2. 🥇 第一優先：嘗試 QQ 音樂（使用 Lyricify 同款現代 musicu.fcg 端點）
-        val qqLyrics = fetchFromQQMusic(cleanTitle, cleanArtist)
+        val qqLyrics = fetchFromQQMusic(cleanTitle, cleanArtist, durationSec)
         val hasQQTranslation = qqLyrics.any { !it.translation.isNullOrBlank() }
 
         if (qqLyrics.isNotEmpty() && hasQQTranslation) {
@@ -55,7 +58,7 @@ object LyricsRepository {
         }
 
         // 3. 🥈 第二優先：嘗試 網易雲音樂
-        val neteaseLyrics = fetchFromNetease(cleanTitle, cleanArtist)
+        val neteaseLyrics = fetchFromNetease(cleanTitle, cleanArtist, durationSec)
         val hasNeteaseTranslation = neteaseLyrics.any { !it.translation.isNullOrBlank() }
 
         if (neteaseLyrics.isNotEmpty() && hasNeteaseTranslation) {
@@ -92,24 +95,31 @@ object LyricsRepository {
     }
 
     private fun wrapResult(lines: List<LyricLine>, source: String): LyricSearchResult {
-        val completedLines = com.example.lockscreenlyrics.data.converter.RomajiAutoCompleter.completeIfMissing(lines)
+        val completedLines = RomajiAutoCompleter.completeIfMissing(lines)
         return LyricSearchResult(completedLines, source)
     }
 
     /**
      * 從 QQ 音樂抓取同步歌詞與雙語翻譯（採用 Lyricify 同款 modern musicu.fcg API）
      */
-    private fun fetchFromQQMusic(title: String, artist: String): List<LyricLine> {
+    private fun fetchFromQQMusic(title: String, artist: String, durationSec: Int): List<LyricLine> {
         try {
             val primaryArtist = artist.split(Regex("[,/&、]|feat\\.?"), 2)[0].trim()
 
-            // 1. 搜尋 songmid
-            var songMid = searchQQSongMid("$title $artist".trim())
+            // 1. 搜尋 songmid（結合歌名校驗與秒數校驗）
+            var songMid = searchQQSongMid("$title $artist".trim(), title, durationSec)
             if (songMid.isNullOrBlank() && primaryArtist.isNotBlank()) {
-                songMid = searchQQSongMid("$title $primaryArtist".trim())
+                songMid = searchQQSongMid("$title $primaryArtist".trim(), title, durationSec)
             }
             if (songMid.isNullOrBlank()) {
-                songMid = searchQQSongMid(title)
+                songMid = searchQQSongMid(title, title, durationSec)
+            }
+            // 雙向羅馬音關鍵字備援搜尋
+            if (songMid.isNullOrBlank()) {
+                val romajiTitle = RomajiAutoCompleter.convertToRomaji(title)
+                if (romajiTitle.isNotBlank() && romajiTitle.lowercase() != title.lowercase()) {
+                    songMid = searchQQSongMid("$romajiTitle $primaryArtist".trim(), title, durationSec)
+                }
             }
 
             if (songMid.isNullOrBlank()) return emptyList()
@@ -236,11 +246,11 @@ object LyricsRepository {
     }
 
     /**
-     * 搜尋 QQ 音樂 songmid
+     * 搜尋 QQ 音樂 songmid（取得前 5 筆，透過歌名相似度與秒數校驗嚴格過濾）
      */
-    private fun searchQQSongMid(query: String): String? {
+    private fun searchQQSongMid(query: String, targetTitle: String, durationSec: Int): String? {
         try {
-            val searchUrl = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?p=1&n=1&w=${URLEncoder.encode(query, "UTF-8")}&format=json"
+            val searchUrl = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?p=1&n=5&w=${URLEncoder.encode(query, "UTF-8")}&format=json"
             val searchReq = Request.Builder()
                 .url(searchUrl)
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
@@ -255,8 +265,22 @@ object LyricsRepository {
                 val songList = searchJson.getAsJsonObject("data")
                     ?.getAsJsonObject("song")
                     ?.getAsJsonArray("list")
+
                 if (songList != null && songList.size() > 0) {
-                    return songList.get(0).asJsonObject.get("songmid")?.asString
+                    for (i in 0 until songList.size()) {
+                        val item = songList.get(i).asJsonObject
+                        val candidateName = item.get("songname")?.asString ?: ""
+                        val interval = item.get("interval")?.asInt ?: 0
+
+                        val isTitleValid = isTitleMatch(targetTitle, candidateName)
+                        val isDurationValid = durationSec <= 0 || interval <= 0 || Math.abs(durationSec - interval) <= 4
+
+                        if (isTitleValid) {
+                            return item.get("songmid")?.asString
+                        } else if (isDurationValid && durationSec > 0 && interval > 0 && Math.abs(durationSec - interval) <= 2) {
+                            return item.get("songmid")?.asString
+                        }
+                    }
                 }
             }
         } catch (_: Exception) {}
@@ -294,15 +318,24 @@ object LyricsRepository {
     /**
      * 從網易雲音樂抓取歌詞與雙語翻譯
      */
-    private fun fetchFromNetease(title: String, artist: String): List<LyricLine> {
+    private fun fetchFromNetease(title: String, artist: String, durationSec: Int): List<LyricLine> {
         try {
             val primaryArtist = artist.split(Regex("[,/&、]|feat\\.?"), 2)[0].trim()
-            var songId = searchNeteaseSongId("$title $artist".trim())
+
+            // 1. 搜尋 songId（結合歌名校驗與秒數校驗）
+            var songId = searchNeteaseSongId("$title $artist".trim(), title, durationSec)
             if (songId == null && primaryArtist.isNotBlank()) {
-                songId = searchNeteaseSongId("$title $primaryArtist".trim())
+                songId = searchNeteaseSongId("$title $primaryArtist".trim(), title, durationSec)
             }
             if (songId == null) {
-                songId = searchNeteaseSongId(title)
+                songId = searchNeteaseSongId(title, title, durationSec)
+            }
+            // 雙向羅馬音關鍵字備援搜尋
+            if (songId == null) {
+                val romajiTitle = RomajiAutoCompleter.convertToRomaji(title)
+                if (romajiTitle.isNotBlank() && romajiTitle.lowercase() != title.lowercase()) {
+                    songId = searchNeteaseSongId("$romajiTitle $primaryArtist".trim(), title, durationSec)
+                }
             }
 
             if (songId != null) {
@@ -314,9 +347,9 @@ object LyricsRepository {
         return emptyList()
     }
 
-    private fun searchNeteaseSongId(query: String): Long? {
+    private fun searchNeteaseSongId(query: String, targetTitle: String, durationSec: Int): Long? {
         try {
-            val searchUrl = "https://music.163.com/api/search/get/web?csrf_token=&hlpretag=&hlposttag=&s=${URLEncoder.encode(query, "UTF-8")}&type=1&offset=0&total=true&limit=1"
+            val searchUrl = "https://music.163.com/api/search/get/web?csrf_token=&hlpretag=&hlposttag=&s=${URLEncoder.encode(query, "UTF-8")}&type=1&offset=0&total=true&limit=5"
             val request = Request.Builder()
                 .url(searchUrl)
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
@@ -329,8 +362,23 @@ object LyricsRepository {
                 val body = response.body?.string() ?: return null
                 val json = gson.fromJson(body, JsonObject::class.java)
                 val songs = json.getAsJsonObject("result")?.getAsJsonArray("songs")
+
                 if (songs != null && songs.size() > 0) {
-                    return songs.get(0).asJsonObject.get("id")?.asLong
+                    for (i in 0 until songs.size()) {
+                        val item = songs.get(i).asJsonObject
+                        val candidateName = item.get("name")?.asString ?: ""
+                        val dtMs = item.get("dt")?.asLong ?: 0L
+                        val candidateDurationSec = (dtMs / 1000).toInt()
+
+                        val isTitleValid = isTitleMatch(targetTitle, candidateName)
+                        val isDurationValid = durationSec <= 0 || candidateDurationSec <= 0 || Math.abs(durationSec - candidateDurationSec) <= 4
+
+                        if (isTitleValid) {
+                            return item.get("id")?.asLong
+                        } else if (isDurationValid && durationSec > 0 && candidateDurationSec > 0 && Math.abs(durationSec - candidateDurationSec) <= 2) {
+                            return item.get("id")?.asLong
+                        }
+                    }
                 }
             }
         } catch (_: Exception) {}
@@ -356,6 +404,16 @@ object LyricsRepository {
 
                 if (!originalLyric.isNullOrBlank()) {
                     var parsed = LrcParser.parse(originalLyric)
+                    // 若解析後只有純人員名單標頭（如 作词/作曲/混音），視為無實際歌詞
+                    val actualLyricLines = parsed.filter { line ->
+                        val t = line.text.trim()
+                        !t.startsWith("作词") && !t.startsWith("作曲") && !t.startsWith("制作人") &&
+                        !t.startsWith("母带") && !t.startsWith("混音") && !t.startsWith("作詞") && !t.startsWith("編曲")
+                    }
+                    if (actualLyricLines.isEmpty()) {
+                        return emptyList()
+                    }
+
                     if (!translationLyric.isNullOrBlank()) {
                         parsed = LrcParser.mergeTranslation(parsed, translationLyric)
                     }
@@ -396,7 +454,7 @@ object LyricsRepository {
                     return LrcParser.parse(syncedLyrics)
                 }
             } else {
-                return searchLrclib(title, artist)
+                return searchLrclib(title, artist, durationSec)
             }
         } catch (e: Exception) {
             Log.w(TAG, "LRCLIB fetch error: ${e.message}")
@@ -404,7 +462,7 @@ object LyricsRepository {
         return emptyList()
     }
 
-    private fun searchLrclib(title: String, artist: String): List<LyricLine> {
+    private fun searchLrclib(title: String, artist: String, durationSec: Int): List<LyricLine> {
         try {
             val query = "$title $artist".trim()
             val url = "https://lrclib.net/api/search?q=${URLEncoder.encode(query, "UTF-8")}"
@@ -414,10 +472,20 @@ object LyricsRepository {
                 val body = response.body?.string() ?: return emptyList()
                 val jsonArray = gson.fromJson(body, com.google.gson.JsonArray::class.java)
                 if (jsonArray.size() > 0) {
-                    val firstItem = jsonArray.get(0).asJsonObject
-                    val syncedLyrics = firstItem.get("syncedLyrics")?.asString
-                    if (!syncedLyrics.isNullOrBlank()) {
-                        return LrcParser.parse(syncedLyrics)
+                    for (i in 0 until jsonArray.size()) {
+                        val item = jsonArray.get(i).asJsonObject
+                        val trackName = item.get("trackName")?.asString ?: ""
+                        val duration = item.get("duration")?.asDouble?.toInt() ?: 0
+
+                        val isTitleValid = isTitleMatch(title, trackName)
+                        val isDurationValid = durationSec <= 0 || duration <= 0 || Math.abs(durationSec - duration) <= 4
+
+                        if (isTitleValid || isDurationValid) {
+                            val syncedLyrics = item.get("syncedLyrics")?.asString
+                            if (!syncedLyrics.isNullOrBlank()) {
+                                return LrcParser.parse(syncedLyrics)
+                            }
+                        }
                     }
                 }
             }
@@ -425,6 +493,37 @@ object LyricsRepository {
             Log.w(TAG, "LRCLIB search error: ${e.message}")
         }
         return emptyList()
+    }
+
+    /**
+     * 比對搜尋回傳的歌名與目標歌名是否一致（支援日語漢字、假名與羅馬音跨語言自動對齊）
+     */
+    private fun isTitleMatch(targetTitle: String, candidateTitle: String?): Boolean {
+        if (candidateTitle.isNullOrBlank()) return false
+
+        val cleanTarget = cleanSongTitle(targetTitle).lowercase().trim()
+        val cleanCandidate = cleanSongTitle(candidateTitle).lowercase().trim()
+
+        // 1. 直觀字串完全相等或包含
+        if (cleanTarget == cleanCandidate || cleanCandidate.contains(cleanTarget) || cleanTarget.contains(cleanCandidate)) {
+            return true
+        }
+
+        // 2. 羅馬音標準化比對 (如：風のたより vs Kaze no Tayori)
+        val romajiTarget = RomajiAutoCompleter.convertToRomaji(cleanTarget)
+            .lowercase()
+            .replace(Regex("[^a-z0-9]"), "")
+        val romajiCandidate = RomajiAutoCompleter.convertToRomaji(cleanCandidate)
+            .lowercase()
+            .replace(Regex("[^a-z0-9]"), "")
+
+        if (romajiTarget.isNotBlank() && romajiCandidate.isNotBlank()) {
+            if (romajiTarget == romajiCandidate || romajiCandidate.contains(romajiTarget) || romajiTarget.contains(romajiCandidate)) {
+                return true
+            }
+        }
+
+        return false
     }
 
     /**
