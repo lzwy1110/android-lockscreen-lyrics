@@ -274,6 +274,7 @@ object LyricsRepository {
                     for (i in 0 until songList.size()) {
                         val item = songList.get(i).asJsonObject
                         val candidateName = item.get("songname")?.asString ?: ""
+                        if (isSpecialVersionConflict(targetTitle, candidateName)) continue
                         val candidateSinger = item.getAsJsonArray("singer")
                             ?.mapNotNull { it.asJsonObject.get("name")?.asString }
                             ?.joinToString(", ") ?: ""
@@ -337,11 +338,12 @@ object LyricsRepository {
                 val matchingCandidates = mutableListOf<JsonObject>()
                 for (i in 0 until songList.size()) {
                     val item = songList.get(i).asJsonObject
+                    val candidateName = item.get("songname")?.asString ?: ""
+                    if (isSpecialVersionConflict(targetTitle, candidateName)) continue
                     val candidateSinger = item.getAsJsonArray("singer")
                         ?.mapNotNull { it.asJsonObject.get("name")?.asString }
                         ?.joinToString(", ") ?: ""
                     val interval = item.get("interval")?.asInt ?: 0
-                    val candidateName = item.get("songname")?.asString ?: ""
 
                     val isArtistValid = isArtistMatch(artist, candidateSinger) || isArtistMatch(primaryArtist, candidateSinger)
                     val isDurationExact = Math.abs(durationSec - interval) <= 2
@@ -449,6 +451,7 @@ object LyricsRepository {
                     for (i in 0 until songs.size()) {
                         val item = songs.get(i).asJsonObject
                         val candidateName = item.get("name")?.asString ?: ""
+                        if (isSpecialVersionConflict(targetTitle, candidateName)) continue
                         val candidateArtists = (item.getAsJsonArray("ar") ?: item.getAsJsonArray("artists"))
                             ?.mapNotNull { it.asJsonObject.get("name")?.asString }
                             ?.joinToString(", ") ?: ""
@@ -555,6 +558,8 @@ object LyricsRepository {
                 val matchingCandidates = mutableListOf<JsonObject>()
                 for (i in 0 until songs.size()) {
                     val item = songs.get(i).asJsonObject
+                    val candidateName = item.get("name")?.asString ?: ""
+                    if (isSpecialVersionConflict(targetTitle, candidateName)) continue
                     val candidateArtists = (item.getAsJsonArray("ar") ?: item.getAsJsonArray("artists"))
                         ?.mapNotNull { it.asJsonObject.get("name")?.asString }
                         ?.joinToString(", ") ?: ""
@@ -809,5 +814,47 @@ object LyricsRepository {
             .replace(Regex("[-–—]?\\s*\\(?\\[?instrumental.*?[\\)\\]]?", RegexOption.IGNORE_CASE), "")
             .replace(Regex("[-–—_:]+$"), "")
             .trim()
+    }
+
+    private val SPECIAL_VERSION_PATTERNS = listOf(
+        Regex("\\(?\\[?\\bchinese\\s*ver(sion)?\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?中文版\\)?\\]?"),
+        Regex("\\(?\\[?國語版\\)?\\]?"),
+        Regex("\\(?\\[?国语版\\)?\\]?"),
+        Regex("\\(?\\[?\\bjapanese\\s*ver(sion)?\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?日文版\\)?\\]?"),
+        Regex("\\(?\\[?日本語ver\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?\\bkorean\\s*ver(sion)?\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?韓文版\\)?\\]?"),
+        Regex("\\(?\\[?韩文版\\)?\\]?"),
+        Regex("\\(?\\[?\\benglish\\s*ver(sion)?\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?英文版\\)?\\]?"),
+        Regex("\\(?\\[?\\bremix\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?\\bacoustic\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?\\bsped\\s*up\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?\\bslowed\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?\\blive\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?現場版\\)?\\]?"),
+        Regex("\\(?\\[?现场版\\)?\\]?"),
+        Regex("\\(?\\[?\\bcover\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?翻唱\\)?\\]?"),
+        Regex("\\(?\\[?\\bpiano\\s*ver(sion)?\\b\\)?\\]?", RegexOption.IGNORE_CASE)
+    )
+
+    /**
+     * 檢查候選歌曲是否帶有目標歌曲未要求的特殊版本標籤（例如目標是原版，候選是 Chinese Version 或 Remix）
+     */
+    private fun isSpecialVersionConflict(targetTitle: String, candidateTitle: String): Boolean {
+        val targetLower = targetTitle.lowercase()
+        val candidateLower = candidateTitle.lowercase()
+
+        for (pattern in SPECIAL_VERSION_PATTERNS) {
+            val candidateHas = pattern.containsMatchIn(candidateLower)
+            val targetHas = pattern.containsMatchIn(targetLower)
+            if (candidateHas && !targetHas) {
+                return true
+            }
+        }
+        return false
     }
 }
