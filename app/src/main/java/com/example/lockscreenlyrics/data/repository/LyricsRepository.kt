@@ -690,14 +690,19 @@ object LyricsRepository {
             }
         }
 
-        // 3. 若歌手包含日文漢字/假名（如 鎖那），容許主音節重合
+        // 3. 若歌手包含日文漢字/假名（如 鎖那 vs sana 或 とた vs tota），容許音節交叉比對
         if (containsEastAsianText(cleanCandidate) || containsEastAsianText(cleanTarget)) {
             val shortStr = if (romajiTarget.length < romajiCandidate.length) romajiTarget else romajiCandidate
             val longStr = if (romajiTarget.length >= romajiCandidate.length) romajiTarget else romajiCandidate
             if (shortStr.length >= 2 && longStr.contains(shortStr.take(2))) {
                 return true
             }
-            return true
+            // 嘗試羅馬拼音平假名轉換 (例如 Tota -> とた)
+            val hiraTarget = RomajiAutoCompleter.romajiToHiragana(cleanTarget)
+            val hiraCandidate = RomajiAutoCompleter.romajiToHiragana(cleanCandidate)
+            if (hiraTarget == cleanCandidate || hiraCandidate == cleanTarget) {
+                return true
+            }
         }
 
         return false
@@ -847,7 +852,14 @@ object LyricsRepository {
         Regex("\\(?\\[?现场版\\)?\\]?"),
         Regex("\\(?\\[?\\bcover\\b\\)?\\]?", RegexOption.IGNORE_CASE),
         Regex("\\(?\\[?翻唱\\)?\\]?"),
-        Regex("\\(?\\[?\\bpiano\\s*ver(sion)?\\b\\)?\\]?", RegexOption.IGNORE_CASE)
+        Regex("\\(?\\[?\\bpiano\\s*ver(sion)?\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?カラオケ\\)?\\]?"),
+        Regex("\\(?\\[?\\bkaraoke\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?オルゴール\\)?\\]?"),
+        Regex("\\(?\\[?\\bmusic\\s*box\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?伴奏\\)?\\]?"),
+        Regex("\\(?\\[?\\boff\\s*vocal\\b\\)?\\]?", RegexOption.IGNORE_CASE),
+        Regex("\\(?\\[?\\binst(rumental)?\\b\\)?\\]?", RegexOption.IGNORE_CASE)
     )
 
     /**
