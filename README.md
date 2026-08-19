@@ -2,6 +2,7 @@
 做完發現其實這個功能蠻雞肋的，如果沒有鎖屏需求推薦Lyricify，做得好很多，電腦版也很好用，推薦!!
 
 > **專為 Spotify 打造的 Android 鎖定畫面即時動態雙語歌詞**
+Real-time dynamic bilingual lock screen lyrics, built specifically for Spotify on Android.
 
 ---
 
