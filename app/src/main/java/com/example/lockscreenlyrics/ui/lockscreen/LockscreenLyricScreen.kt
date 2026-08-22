@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QueueMusic
@@ -43,6 +44,8 @@ import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.ui.res.painterResource
+import com.example.lockscreenlyrics.R
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -592,15 +595,53 @@ private fun MediaControlCard(
                     )
                 }
 
-                IconButton(
-                    onClick = onToggleLyrics,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = if (showLyricsMode) Icons.Rounded.Album else Icons.Rounded.QueueMusic,
-                        contentDescription = "切換顯示",
-                        tint = Color.White
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val lyricSource by PlaybackStateHolder.lyricSource.collectAsState()
+                    val isSearching by PlaybackStateHolder.isSearching.collectAsState()
+                    val isQQ = lyricSource.contains("QQ")
+
+                    // 1. 歌詞數據源切換按鈕 (網易雲 ☁️ ⇄ QQ 音樂 🐧)
+                    IconButton(
+                        onClick = { PlaybackStateHolder.switchLyricSource() },
+                        modifier = Modifier.size(36.dp),
+                        enabled = !isSearching && song.title.isNotBlank()
+                    ) {
+                        if (isSearching) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = accentColor,
+                                strokeWidth = 2.dp
+                            )
+                        } else if (isQQ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_qq_penguin),
+                                contentDescription = "目前為 QQ 音樂，點擊切換為網易雲",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.Cloud,
+                                contentDescription = "目前為網易雲音樂，點擊切換為 QQ 音樂",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(2.dp))
+
+                    // 2. 歌詞 / 大封面檢視切換按鈕
+                    IconButton(
+                        onClick = onToggleLyrics,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (showLyricsMode) Icons.Rounded.Album else Icons.Rounded.QueueMusic,
+                            contentDescription = "切換顯示",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
 

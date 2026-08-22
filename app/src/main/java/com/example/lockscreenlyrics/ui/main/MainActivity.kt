@@ -29,11 +29,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.ScreenLockPortrait
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.ui.res.painterResource
+import com.example.lockscreenlyrics.R
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -219,7 +222,7 @@ fun MainScreen(
             }
 
             // 2. 自訂視覺與偏好設定卡片
-            Text("自訂外觀與排版", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("自訂外觀與偏好", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -227,6 +230,80 @@ fun MainScreen(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2A))
             ) {
                 Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // 首選歌詞來源選擇器
+                    val preferredSource by AppSettings.preferredSource.collectAsState()
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.Cloud, contentDescription = null, tint = Color(0xFF8EB5FF), modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("首選歌詞來源優先級", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text("決定播放新歌時預設第一優先檢索的平台", color = Color(0x99FFFFFF), fontSize = 11.sp)
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // 網易雲音樂選項
+                            val isNeteaseSelected = preferredSource == AppSettings.SOURCE_NETEASE
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isNeteaseSelected) Color(0xFF8EB5FF) else Color(0xFF14141E))
+                                    .clickable { AppSettings.setPreferredSource(AppSettings.SOURCE_NETEASE) }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Cloud,
+                                        contentDescription = null,
+                                        tint = if (isNeteaseSelected) Color.Black else Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "網易雲音樂",
+                                        color = if (isNeteaseSelected) Color.Black else Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isNeteaseSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            }
+
+                            // QQ 音樂選項
+                            val isQQSelected = preferredSource == AppSettings.SOURCE_QQ
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isQQSelected) Color(0xFF1DB954) else Color(0xFF14141E))
+                                    .clickable { AppSettings.setPreferredSource(AppSettings.SOURCE_QQ) }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_qq_penguin),
+                                        contentDescription = null,
+                                        tint = if (isQQSelected) Color.Black else Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "QQ 音樂",
+                                        color = if (isQQSelected) Color.Black else Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isQQSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // 雙語翻譯開關
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -238,7 +315,7 @@ fun MainScreen(
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text("雙語翻譯歌詞", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                Text("自動從 QQ 音樂 / 網易雲匹配翻譯", color = Color(0x99FFFFFF), fontSize = 11.sp)
+                                Text("自動匹配高質量雙語翻譯歌詞", color = Color(0x99FFFFFF), fontSize = 11.sp)
                             }
                         }
                         Switch(
@@ -443,7 +520,7 @@ fun MainScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (isServiceActive) "監聽服務已連線 (QQ 音樂第一優先)" else "監聽服務待命 (請確認已授權)",
+                            text = if (isServiceActive) "監聽服務已連線 (Spotify 即時同步中)" else "監聽服務待命 (請確認已授權)",
                             color = Color.White,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium

@@ -74,4 +74,35 @@ object PlaybackStateHolder {
     fun seekTo(positionMs: Long) {
         activeMediaController?.transportControls?.seekTo(positionMs)
     }
+
+    /**
+     * 一鍵切換歌詞數據源（在 網易雲音樂 ☁️ 與 QQ 音樂 🐧 之間即時切換）
+     */
+    fun switchLyricSource() {
+        val song = _currentSong.value
+        if (song.title.isBlank()) return
+
+        val currentSource = _lyricSource.value
+        val targetSource = if (currentSource.contains("網易")) {
+            com.example.lockscreenlyrics.data.settings.AppSettings.SOURCE_QQ
+        } else {
+            com.example.lockscreenlyrics.data.settings.AppSettings.SOURCE_NETEASE
+        }
+
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            _isSearching.value = true
+            val durationSec = (song.durationMs / 1000).toInt()
+            val result = com.example.lockscreenlyrics.data.repository.LyricsRepository.fetchSpecificSource(
+                targetSource,
+                song.title,
+                song.artist,
+                durationSec
+            )
+
+            if (result.lines.isNotEmpty()) {
+                updateLyrics(result.lines, result.source)
+            }
+            _isSearching.value = false
+        }
+    }
 }

@@ -36,53 +36,84 @@ object LyricsRepository {
     private val memoryCache = ConcurrentHashMap<String, LyricSearchResult>()
 
     /**
-     * 獲取歌詞主入口：依照 QQ 音樂 (雙語優先) -> 網易雲音樂 (雙語優先) -> 原版歌詞 -> LRCLIB 依序退守
+     * 統一歌詞獲取入口（支援首選來源設定與雙語翻譯優先）
      */
     suspend fun getLyrics(title: String, artist: String, durationSec: Int = 0): LyricSearchResult = withContext(Dispatchers.IO) {
         val cleanTitle = cleanSongTitle(title)
         val cleanArtist = artist.trim()
-        val cacheKey = "$cleanTitle-$cleanArtist".lowercase()
+        val preferredSource = com.example.lockscreenlyrics.data.settings.AppSettings.preferredSource.value
+        val cacheKey = "$cleanTitle-$cleanArtist-$preferredSource".lowercase()
 
         // 1. 檢查記憶體快取
         memoryCache[cacheKey]?.let { return@withContext it }
 
-        // 2. 🥇 第一優先：嘗試 網易雲音樂（二次元、日語與社群雙語翻譯最齊全）
-        val neteaseLyrics = fetchFromNetease(cleanTitle, cleanArtist, durationSec)
-        val hasNeteaseTranslation = neteaseLyrics.any { !it.translation.isNullOrBlank() }
+        if (preferredSource == com.example.lockscreenlyrics.data.settings.AppSettings.SOURCE_QQ) {
+            // 🥇 QQ 音樂優先模式
+            val qqLyrics = fetchFromQQMusic(cleanTitle, cleanArtist, durationSec)
+            val hasQQTranslation = qqLyrics.any { !it.translation.isNullOrBlank() }
+            if (qqLyrics.isNotEmpty() && hasQQTranslation) {
+                Log.d(TAG, "成功從 QQ 音樂取得雙語歌詞: $cleanTitle (${qqLyrics.size} 行，含翻譯)")
+                val result = wrapResult(qqLyrics, "QQ 音樂")
+                memoryCache[cacheKey] = result
+                return@withContext result
+            }
 
-        if (neteaseLyrics.isNotEmpty() && hasNeteaseTranslation) {
-            Log.d(TAG, "成功從 網易雲音樂取得雙語歌詞: $cleanTitle (${neteaseLyrics.size} 行，含翻譯)")
-            val result = wrapResult(neteaseLyrics, "網易雲音樂")
-            memoryCache[cacheKey] = result
-            return@withContext result
+            val neteaseLyrics = fetchFromNetease(cleanTitle, cleanArtist, durationSec)
+            val hasNeteaseTranslation = neteaseLyrics.any { !it.translation.isNullOrBlank() }
+            if (neteaseLyrics.isNotEmpty() && hasNeteaseTranslation) {
+                Log.d(TAG, "成功從 網易雲音樂取得雙語歌詞: $cleanTitle (${neteaseLyrics.size} 行，含翻譯)")
+                val result = wrapResult(neteaseLyrics, "網易雲音樂")
+                memoryCache[cacheKey] = result
+                return@withContext result
+            }
+
+            if (qqLyrics.isNotEmpty()) {
+                Log.d(TAG, "使用 QQ 音樂原版歌詞: $cleanTitle")
+                val result = wrapResult(qqLyrics, "QQ 音樂")
+                memoryCache[cacheKey] = result
+                return@withContext result
+            }
+            if (neteaseLyrics.isNotEmpty()) {
+                Log.d(TAG, "使用 網易雲原版歌詞: $cleanTitle")
+                val result = wrapResult(neteaseLyrics, "網易雲音樂")
+                memoryCache[cacheKey] = result
+                return@withContext result
+            }
+        } else {
+            // 🥇 網易雲音樂優先模式 (預設)
+            val neteaseLyrics = fetchFromNetease(cleanTitle, cleanArtist, durationSec)
+            val hasNeteaseTranslation = neteaseLyrics.any { !it.translation.isNullOrBlank() }
+            if (neteaseLyrics.isNotEmpty() && hasNeteaseTranslation) {
+                Log.d(TAG, "成功從 網易雲音樂取得雙語歌詞: $cleanTitle (${neteaseLyrics.size} 行，含翻譯)")
+                val result = wrapResult(neteaseLyrics, "網易雲音樂")
+                memoryCache[cacheKey] = result
+                return@withContext result
+            }
+
+            val qqLyrics = fetchFromQQMusic(cleanTitle, cleanArtist, durationSec)
+            val hasQQTranslation = qqLyrics.any { !it.translation.isNullOrBlank() }
+            if (qqLyrics.isNotEmpty() && hasQQTranslation) {
+                Log.d(TAG, "成功從 QQ 音樂取得雙語歌詞: $cleanTitle (${qqLyrics.size} 行，含翻譯)")
+                val result = wrapResult(qqLyrics, "QQ 音樂")
+                memoryCache[cacheKey] = result
+                return@withContext result
+            }
+
+            if (neteaseLyrics.isNotEmpty()) {
+                Log.d(TAG, "使用 網易雲原版歌詞: $cleanTitle")
+                val result = wrapResult(neteaseLyrics, "網易雲音樂")
+                memoryCache[cacheKey] = result
+                return@withContext result
+            }
+            if (qqLyrics.isNotEmpty()) {
+                Log.d(TAG, "使用 QQ 音樂原版歌詞: $cleanTitle")
+                val result = wrapResult(qqLyrics, "QQ 音樂")
+                memoryCache[cacheKey] = result
+                return@withContext result
+            }
         }
 
-        // 3. 🥈 第二優先：嘗試 QQ 音樂（使用 Lyricify 同款現代 musicu.fcg 端點）
-        val qqLyrics = fetchFromQQMusic(cleanTitle, cleanArtist, durationSec)
-        val hasQQTranslation = qqLyrics.any { !it.translation.isNullOrBlank() }
-
-        if (qqLyrics.isNotEmpty() && hasQQTranslation) {
-            Log.d(TAG, "成功從 QQ 音樂取得雙語歌詞: $cleanTitle (${qqLyrics.size} 行，含翻譯)")
-            val result = wrapResult(qqLyrics, "QQ 音樂")
-            memoryCache[cacheKey] = result
-            return@withContext result
-        }
-
-        // 4. 若兩者都沒有翻譯，退守使用有歌詞的來源（網易雲優先 -> QQ 音樂 -> LRCLIB）
-        if (neteaseLyrics.isNotEmpty()) {
-            Log.d(TAG, "使用 網易雲原版歌詞: $cleanTitle")
-            val result = wrapResult(neteaseLyrics, "網易雲音樂")
-            memoryCache[cacheKey] = result
-            return@withContext result
-        }
-        if (qqLyrics.isNotEmpty()) {
-            Log.d(TAG, "使用 QQ 音樂原版歌詞: $cleanTitle")
-            val result = wrapResult(qqLyrics, "QQ 音樂")
-            memoryCache[cacheKey] = result
-            return@withContext result
-        }
-
-        // 5. 🥉 第三優先：嘗試 LRCLIB 開源歌詞庫
+        // 🥉 備援：嘗試 LRCLIB 開源歌詞庫
         val lrclibLyrics = fetchFromLrclib(cleanTitle, cleanArtist, durationSec)
         if (lrclibLyrics.isNotEmpty()) {
             Log.d(TAG, "使用 LRCLIB 歌詞: $cleanTitle")
@@ -91,6 +122,27 @@ object LyricsRepository {
             return@withContext result
         }
 
+        LyricSearchResult()
+    }
+
+    /**
+     * 強制手動抓取指定來源（用於鎖屏右上角 ☁️ ⇄ 🐧 即時無縫切換）
+     */
+    suspend fun fetchSpecificSource(targetSource: String, title: String, artist: String, durationSec: Int = 0): LyricSearchResult = withContext(Dispatchers.IO) {
+        val cleanTitle = cleanSongTitle(title)
+        val cleanArtist = artist.trim()
+
+        if (targetSource == com.example.lockscreenlyrics.data.settings.AppSettings.SOURCE_QQ) {
+            val qq = fetchFromQQMusic(cleanTitle, cleanArtist, durationSec)
+            if (qq.isNotEmpty()) {
+                return@withContext wrapResult(qq, "QQ 音樂")
+            }
+        } else if (targetSource == com.example.lockscreenlyrics.data.settings.AppSettings.SOURCE_NETEASE) {
+            val netease = fetchFromNetease(cleanTitle, cleanArtist, durationSec)
+            if (netease.isNotEmpty()) {
+                return@withContext wrapResult(netease, "網易雲音樂")
+            }
+        }
         LyricSearchResult()
     }
 

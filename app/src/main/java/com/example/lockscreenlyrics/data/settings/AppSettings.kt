@@ -18,14 +18,21 @@ object AppSettings {
     private const val KEY_ROMAJI_COLOR_HEX = "romaji_color_hex"
     private const val KEY_TRANSLATION_COLOR_HEX = "translation_color_hex"
     private const val KEY_CONVERT_TRADITIONAL = "convert_traditional"
+    private const val KEY_PREFERRED_SOURCE = "preferred_source"
     private const val KEY_CLOCK_SIZE = "clock_size_sp"
     private const val KEY_LYRIC_SIZE = "lyric_size_sp"
     private const val KEY_BG_DIM = "bg_dim_percent"
+
+    const val SOURCE_NETEASE = "netease"
+    const val SOURCE_QQ = "qq"
 
     private lateinit var prefs: SharedPreferences
 
     private val _isEnabled = MutableStateFlow(true)
     val isEnabled: StateFlow<Boolean> = _isEnabled.asStateFlow()
+
+    private val _preferredSource = MutableStateFlow(SOURCE_NETEASE)
+    val preferredSource: StateFlow<String> = _preferredSource.asStateFlow()
 
     private val _showTranslation = MutableStateFlow(true)
     val showTranslation: StateFlow<Boolean> = _showTranslation.asStateFlow()
@@ -64,6 +71,7 @@ object AppSettings {
     fun init(context: Context) {
         prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _isEnabled.value = prefs.getBoolean(KEY_IS_ENABLED, true)
+        _preferredSource.value = prefs.getString(KEY_PREFERRED_SOURCE, SOURCE_NETEASE) ?: SOURCE_NETEASE
         _showTranslation.value = prefs.getBoolean(KEY_SHOW_TRANSLATION, true)
         _showRomaji.value = prefs.getBoolean(KEY_SHOW_ROMAJI, true)
         _showClock.value = prefs.getBoolean(KEY_SHOW_CLOCK, true)
@@ -78,6 +86,11 @@ object AppSettings {
 
         // 背景非阻塞預載入日語漢字音訓對照字典
         com.example.lockscreenlyrics.data.converter.RomajiAutoCompleter.init(context)
+    }
+
+    fun setPreferredSource(source: String) {
+        _preferredSource.value = source
+        prefs.edit().putString(KEY_PREFERRED_SOURCE, source).apply()
     }
 
     fun setThemeColorHex(hex: String) {
