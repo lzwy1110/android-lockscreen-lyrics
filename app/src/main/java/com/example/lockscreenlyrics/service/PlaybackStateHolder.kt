@@ -3,9 +3,12 @@ package com.example.lockscreenlyrics.service
 import android.media.session.MediaController
 import com.example.lockscreenlyrics.data.model.LyricLine
 import com.example.lockscreenlyrics.data.model.SongMetadata
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 object PlaybackStateHolder {
     private val _currentSong = MutableStateFlow(SongMetadata())
