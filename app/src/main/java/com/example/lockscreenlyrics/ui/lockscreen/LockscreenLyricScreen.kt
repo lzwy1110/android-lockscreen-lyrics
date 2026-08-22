@@ -596,13 +596,14 @@ private fun MediaControlCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     val lyricSource by PlaybackStateHolder.lyricSource.collectAsState()
                     val isSearching by PlaybackStateHolder.isSearching.collectAsState()
                     val isQQ = lyricSource.contains("QQ")
 
                     // 1. 歌詞數據源切換按鈕 (網易雲 ☁️ ⇄ QQ 音樂 🐧)
                     IconButton(
-                        onClick = { PlaybackStateHolder.switchLyricSource() },
+                        onClick = { PlaybackStateHolder.switchLyricSource(context) },
                         modifier = Modifier.size(36.dp),
                         enabled = !isSearching && song.title.isNotBlank()
                     ) {

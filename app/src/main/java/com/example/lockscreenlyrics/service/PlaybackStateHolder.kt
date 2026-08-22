@@ -81,7 +81,7 @@ object PlaybackStateHolder {
     /**
      * 一鍵切換歌詞數據源（在 網易雲音樂 ☁️ 與 QQ 音樂 🐧 之間即時切換）
      */
-    fun switchLyricSource() {
+    fun switchLyricSource(context: android.content.Context? = null) {
         val song = _currentSong.value
         if (song.title.isBlank()) return
 
@@ -91,8 +91,9 @@ object PlaybackStateHolder {
         } else {
             com.example.lockscreenlyrics.data.settings.AppSettings.SOURCE_NETEASE
         }
+        val targetName = if (targetSource == com.example.lockscreenlyrics.data.settings.AppSettings.SOURCE_QQ) "QQ 音樂" else "網易雲音樂"
 
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO).launch {
             _isSearching.value = true
             val durationSec = (song.durationMs / 1000).toInt()
             val result = com.example.lockscreenlyrics.data.repository.LyricsRepository.fetchSpecificSource(
@@ -104,6 +105,17 @@ object PlaybackStateHolder {
 
             if (result.lines.isNotEmpty()) {
                 updateLyrics(result.lines, result.source)
+                if (context != null) {
+                    kotlinx.coroutines.withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(context.applicationContext, "已切換至 $targetName 歌詞", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                if (context != null) {
+                    kotlinx.coroutines.withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(context.applicationContext, "$targetName 暫無此歌曲的歌詞", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
             _isSearching.value = false
         }
