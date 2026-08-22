@@ -237,8 +237,12 @@ fun MainScreen(
                             Icon(Icons.Rounded.Cloud, contentDescription = null, tint = Color(0xFF8EB5FF), modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
-                                Text("首選歌詞來源優先級", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                Text("決定播放新歌時預設第一優先檢索的平台", color = Color(0x99FFFFFF), fontSize = 11.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("首選歌詞來源優先級", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("(有歌詞優先)", color = Color(0xFF8EB5FF), fontSize = 11.sp, fontWeight = FontWeight.Normal)
+                                }
+                                Text("決定播放新歌時預設第一優先檢索的平台；若無歌詞則自動由其他來源保底", color = Color(0x99FFFFFF), fontSize = 11.sp)
                             }
                         }
 
