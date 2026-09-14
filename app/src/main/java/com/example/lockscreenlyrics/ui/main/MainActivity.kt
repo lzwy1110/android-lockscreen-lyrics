@@ -22,12 +22,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Palette
@@ -35,6 +38,8 @@ import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.ScreenLockPortrait
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.res.painterResource
 import com.example.lockscreenlyrics.R
 import androidx.compose.material3.Button
@@ -221,7 +226,31 @@ fun MainScreen(
                 }
             }
 
-            // 2. 自訂視覺與偏好設定卡片
+            // 讀取各項外觀狀態
+            val themeColorHex by AppSettings.themeColorHex.collectAsState()
+            val originalColorHex by AppSettings.originalColorHex.collectAsState()
+            val romajiColorHex by AppSettings.romajiColorHex.collectAsState()
+            val translationColorHex by AppSettings.translationColorHex.collectAsState()
+            val showRomaji by AppSettings.showRomaji.collectAsState()
+            val showClock by AppSettings.showClock.collectAsState()
+            val convertTraditional by AppSettings.convertTraditional.collectAsState()
+
+            // 📱 2. 鎖定畫面效果即時預覽盒 (Live Interactive Lyric Preview Box)
+            LivePreviewCard(
+                themeColorHex = themeColorHex,
+                originalColorHex = originalColorHex,
+                romajiColorHex = romajiColorHex,
+                translationColorHex = translationColorHex,
+                clockSizeSp = clockSizeSp,
+                lyricSizeSp = lyricSizeSp,
+                bgDimPercent = bgDimPercent,
+                showClock = showClock,
+                showRomaji = showRomaji,
+                showTranslation = showTranslation,
+                convertTraditional = convertTraditional
+            )
+
+            // 3. 自訂視覺與偏好設定卡片
             Text("自訂外觀與偏好", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
 
             Card(
@@ -330,7 +359,6 @@ fun MainScreen(
                     }
 
                     // 繁體中文轉換開關
-                    val convertTraditional by AppSettings.convertTraditional.collectAsState()
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -352,7 +380,6 @@ fun MainScreen(
                     }
 
                     // 羅馬拼音開關
-                    val showRomaji by AppSettings.showRomaji.collectAsState()
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -374,7 +401,6 @@ fun MainScreen(
                     }
 
                     // 頂部時鐘顯示開關
-                    val showClock by AppSettings.showClock.collectAsState()
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -395,12 +421,18 @@ fun MainScreen(
                         )
                     }
 
-                    // 獨立色彩自訂區域
-                    val themeColorHex by AppSettings.themeColorHex.collectAsState()
-                    val originalColorHex by AppSettings.originalColorHex.collectAsState()
-                    val romajiColorHex by AppSettings.romajiColorHex.collectAsState()
-                    val translationColorHex by AppSettings.translationColorHex.collectAsState()
+                    // 🎨 設計師一鍵主題配色盤 (Theme Presets)
+                    ThemePresetRow(
+                        currentThemeHex = themeColorHex,
+                        onApplyTheme = { preset ->
+                            AppSettings.setThemeColorHex(preset.themeColorHex)
+                            AppSettings.setOriginalColorHex(preset.originalColorHex)
+                            AppSettings.setRomajiColorHex(preset.romajiColorHex)
+                            AppSettings.setTranslationColorHex(preset.translationColorHex)
+                        }
+                    )
 
+                    // 獨立色彩自訂區域
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
@@ -705,6 +737,241 @@ private fun ColorPickerRow(
                 ),
                 shape = RoundedCornerShape(10.dp)
             )
+        }
+    }
+}
+
+/**
+ * 📱 鎖定畫面效果即時預覽盒 (Live Interactive Lyric Preview Box)
+ */
+@Composable
+private fun LivePreviewCard(
+    themeColorHex: String,
+    originalColorHex: String,
+    romajiColorHex: String,
+    translationColorHex: String,
+    clockSizeSp: Int,
+    lyricSizeSp: Int,
+    bgDimPercent: Int,
+    showClock: Boolean,
+    showRomaji: Boolean,
+    showTranslation: Boolean,
+    convertTraditional: Boolean
+) {
+    val accentColor = remember(themeColorHex) {
+        try { Color(android.graphics.Color.parseColor(themeColorHex)) } catch (_: Exception) { Color(0xFF8EB5FF) }
+    }
+    val originalColor = remember(originalColorHex) {
+        try { Color(android.graphics.Color.parseColor(originalColorHex)) } catch (_: Exception) { Color.White }
+    }
+    val romajiColor = remember(romajiColorHex) {
+        try { Color(android.graphics.Color.parseColor(romajiColorHex)) } catch (_: Exception) { Color(0xFF8EB5FF) }
+    }
+    val translationColor = remember(translationColorHex) {
+        try { Color(android.graphics.Color.parseColor(translationColorHex)) } catch (_: Exception) { Color.White }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = Color(0xFFFFB74D), modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("鎖定畫面效果即時預覽", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
+
+        val cardShape = RoundedCornerShape(22.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(cardShape)
+                .background(Color(0xFF14141E))
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.03f))
+                    ),
+                    shape = cardShape
+                )
+                .padding(16.dp)
+        ) {
+            // 背景動態光暈
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(accentColor.copy(alpha = 0.20f), Color.Transparent),
+                            radius = 450f
+                        )
+                    )
+            )
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // 1. 迷你時鐘預覽
+                if (showClock) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "9月14日, 週一",
+                            color = accentColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "12:45",
+                            color = accentColor,
+                            fontSize = (clockSizeSp * 0.42f).coerceIn(24f, 44f).sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // 2. 歌詞示範句（主唱句高光微發光）
+                val rawOriginal = "大なり 小なり 人を愛して 愛されたい"
+                val rawRomaji = "dainari shounari hito o aishite aisaretai"
+                val rawTrans = "無論偉大還是渺小 都想去愛人 也想被愛"
+
+                val displayOriginal = if (convertTraditional) com.example.lockscreenlyrics.data.converter.ChineseConverter.toTraditional(rawOriginal) else rawOriginal
+                val displayTrans = if (convertTraditional) com.example.lockscreenlyrics.data.converter.ChineseConverter.toTraditional(rawTrans) else rawTrans
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    // 原文
+                    Text(
+                        text = displayOriginal,
+                        color = originalColor,
+                        fontSize = (lyricSizeSp * 0.65f).coerceIn(15f, 24f).sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = Shadow(color = accentColor.copy(alpha = 0.45f), blurRadius = 12f)
+                        )
+                    )
+
+                    // 羅馬音
+                    if (showRomaji) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = rawRomaji,
+                            color = romajiColor,
+                            fontSize = (lyricSizeSp * 0.36f).coerceIn(9f, 13f).sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    // 雙語翻譯
+                    if (showTranslation) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = displayTrans,
+                            color = translationColor,
+                            fontSize = (lyricSizeSp * 0.45f).coerceIn(11f, 16f).sp,
+                            fontWeight = FontWeight.Normal,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                // 3. 迷你波浪進度條示範
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color.White.copy(alpha = 0.15f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.48f)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(accentColor)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 🎨 設計師一鍵主題配色盤 (Designer Theme Presets)
+ */
+data class ThemePreset(
+    val name: String,
+    val themeColorHex: String,
+    val originalColorHex: String,
+    val romajiColorHex: String,
+    val translationColorHex: String
+)
+
+@Composable
+private fun ThemePresetRow(
+    currentThemeHex: String,
+    onApplyTheme: (ThemePreset) -> Unit
+) {
+    val presets = listOf(
+        ThemePreset("🌌 極光藍", "#8EB5FF", "#FFFFFF", "#8EB5FF", "#E8EAF6"),
+        ThemePreset("🟢 Spotify 綠", "#1DB954", "#FFFFFF", "#C8E6C9", "#FFFFFF"),
+        ThemePreset("🌇 日落金", "#FFA726", "#FFFFFF", "#FFE0B2", "#FFF3E0"),
+        ThemePreset("🌸 櫻花粉", "#FF8DA1", "#FFFFFF", "#FFCDD2", "#FFFFFF"),
+        ThemePreset("💜 霓虹紫", "#B388FF", "#FFFFFF", "#D1C4E9", "#EDE7F6"),
+        ThemePreset("⚪ 極簡白", "#FFFFFF", "#FFFFFF", "#CCCCCC", "#E0E0E0")
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.Palette, contentDescription = null, tint = Color(0xFF8EB5FF), modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("設計師一鍵主題套裝", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            presets.forEach { preset ->
+                val isSelected = preset.themeColorHex.equals(currentThemeHex, ignoreCase = true)
+                val pColor = Color(android.graphics.Color.parseColor(preset.themeColorHex))
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSelected) pColor.copy(alpha = 0.25f) else Color(0xFF14141E))
+                        .border(
+                            width = if (isSelected) 1.5.dp else 1.dp,
+                            color = if (isSelected) pColor else Color.White.copy(alpha = 0.10f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .clickable { onApplyTheme(preset) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(pColor)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = preset.name,
+                            color = if (isSelected) Color.White else Color(0xCCFFFFFF),
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
         }
     }
 }

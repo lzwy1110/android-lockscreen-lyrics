@@ -2,24 +2,30 @@ package com.example.lockscreenlyrics.ui.lockscreen
 
 import android.graphics.Bitmap
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -44,10 +50,7 @@ import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.ui.res.painterResource
-import com.example.lockscreenlyrics.R
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,21 +63,28 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.lockscreenlyrics.R
 import com.example.lockscreenlyrics.data.model.LyricLine
 import com.example.lockscreenlyrics.data.settings.AppSettings
 import com.example.lockscreenlyrics.service.PlaybackStateHolder
@@ -82,6 +92,8 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.PI
+import kotlin.math.sin
 
 @Composable
 fun LockscreenLyricScreen(
@@ -161,19 +173,11 @@ fun LockscreenLyricScreen(
                 )
             }
     ) {
-        // 背景微暗高斯毛玻璃漸層遮罩
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = dimAlpha * 0.35f),
-                            Color.Black.copy(alpha = dimAlpha * 0.75f),
-                            Color.Black.copy(alpha = dimAlpha)
-                        )
-                    )
-                )
+        // 1. 🌈 動態流光毛玻璃背景 (Fluid Ambient Mesh)
+        AmbientFluidBackground(
+            bitmap = song.albumArtBitmap,
+            accentColor = accentColor,
+            dimAlpha = dimAlpha
         )
 
         Column(
@@ -247,6 +251,7 @@ fun LockscreenLyricScreen(
                                         originalColor = originalColor,
                                         romajiColor = romajiColor,
                                         translationColor = translationColor,
+                                        accentColor = accentColor,
                                         onLineClick = {
                                             PlaybackStateHolder.seekTo(line.timeMs)
                                         }
@@ -328,6 +333,115 @@ fun LockscreenLyricScreen(
 }
 
 /**
+ * 🌈 動態呼吸流光毛玻璃背景 (Fluid Ambient Mesh)
+ */
+@Composable
+private fun AmbientFluidBackground(
+    bitmap: Bitmap?,
+    accentColor: Color,
+    dimAlpha: Float,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "ambient")
+    val phase1 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 24000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "phase1"
+    )
+    val scaleShift by infiniteTransition.animateFloat(
+        initialValue = 0.94f,
+        targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 9000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+
+    val dynamicPrimary = remember(bitmap, accentColor) {
+        extractDominantColor(bitmap) ?: accentColor
+    }
+    val dynamicSecondary = remember(dynamicPrimary) {
+        dynamicPrimary.copy(
+            red = (dynamicPrimary.red * 0.75f + 0.25f).coerceIn(0f, 1f),
+            green = (dynamicPrimary.green * 0.65f + 0.15f).coerceIn(0f, 1f),
+            blue = (dynamicPrimary.blue * 0.85f + 0.15f).coerceIn(0f, 1f)
+        )
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scaleShift
+                    scaleY = scaleShift
+                }
+        ) {
+            val w = size.width
+            val h = size.height
+            val rad = Math.toRadians(phase1.toDouble())
+            val offsetX1 = (Math.cos(rad) * w * 0.22f).toFloat()
+            val offsetY1 = (Math.sin(rad) * h * 0.15f).toFloat()
+
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        dynamicPrimary.copy(alpha = 0.45f),
+                        dynamicPrimary.copy(alpha = 0.15f),
+                        Color.Transparent
+                    ),
+                    center = Offset(w * 0.35f + offsetX1, h * 0.35f + offsetY1),
+                    radius = w * 0.90f
+                )
+            )
+
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        dynamicSecondary.copy(alpha = 0.40f),
+                        dynamicSecondary.copy(alpha = 0.10f),
+                        Color.Transparent
+                    ),
+                    center = Offset(w * 0.65f - offsetX1, h * 0.65f - offsetY1),
+                    radius = w * 0.95f
+                )
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = dimAlpha * 0.32f),
+                            Color.Black.copy(alpha = dimAlpha * 0.70f),
+                            Color.Black.copy(alpha = (dimAlpha * 1.05f).coerceAtMost(0.98f))
+                        )
+                    )
+                )
+        )
+    }
+}
+
+private fun extractDominantColor(bitmap: Bitmap?): Color? {
+    if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) return null
+    return try {
+        val sampleX = (bitmap.width * 0.5f).toInt().coerceIn(0, bitmap.width - 1)
+        val sampleY = (bitmap.height * 0.5f).toInt().coerceIn(0, bitmap.height - 1)
+        val pixel = bitmap.getPixel(sampleX, sampleY)
+        Color(pixel)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/**
  * 鎖定畫面超大時鐘與日期（支援自訂主題色彩）
  */
 @Composable
@@ -385,6 +499,7 @@ private fun LyricRowItem(
     originalColor: Color,
     romajiColor: Color,
     translationColor: Color,
+    accentColor: Color,
     onLineClick: () -> Unit
 ) {
     val isActive = (distanceFromActive == 0)
@@ -439,7 +554,7 @@ private fun LyricRowItem(
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 1. 原文歌詞（固定字級，完全透過 GPU scale 縮放，杜絕抖動）
+        // 1. 原文歌詞（✨ 主唱句自帶柔和發光質感與高光微陰影）
         Text(
             text = displayText,
             color = originalColor,
@@ -447,6 +562,16 @@ private fun LyricRowItem(
             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
             textAlign = TextAlign.Center,
             lineHeight = (baseFontSize * 1.3f).sp,
+            style = if (isActive) {
+                LocalTextStyle.current.copy(
+                    shadow = Shadow(
+                        color = accentColor.copy(alpha = 0.45f),
+                        blurRadius = 16f
+                    )
+                )
+            } else {
+                LocalTextStyle.current
+            },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -558,11 +683,23 @@ private fun MediaControlCard(
         (displayPosition.toFloat() / song.durationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
 
+    // 🪟 One UI 7 透光毛玻璃邊框與擬真質感
+    val cardShape = RoundedCornerShape(26.dp)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(26.dp))
+            .clip(cardShape)
             .background(Color(0x551E1E28))
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.22f),
+                        Color.White.copy(alpha = 0.04f)
+                    )
+                ),
+                shape = cardShape
+            )
             .padding(16.dp)
     ) {
         Column {
@@ -601,10 +738,19 @@ private fun MediaControlCard(
                     val isSearching by PlaybackStateHolder.isSearching.collectAsState()
                     val isQQ = lyricSource.contains("QQ")
 
+                    // 360° 彈簧旋轉切換動效
+                    val iconRotation by animateFloatAsState(
+                        targetValue = if (isQQ) 360f else 0f,
+                        animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f),
+                        label = "iconRot"
+                    )
+
                     // 1. 歌詞數據源切換按鈕 (網易雲 ☁️ ⇄ QQ 音樂 🐧)
                     IconButton(
                         onClick = { PlaybackStateHolder.switchLyricSource(context) },
-                        modifier = Modifier.size(36.dp),
+                        modifier = Modifier
+                            .size(36.dp)
+                            .graphicsLayer { rotationZ = iconRotation },
                         enabled = !isSearching && song.title.isNotBlank()
                     ) {
                         if (isSearching) {
@@ -648,25 +794,14 @@ private fun MediaControlCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 進度滑動條
-            Slider(
-                value = if (isSeeking) seekProgress else progressFraction,
-                onValueChange = {
-                    isSeeking = true
-                    seekProgress = it
-                },
-                onValueChangeFinished = {
-                    isSeeking = false
-                    PlaybackStateHolder.seekTo((seekProgress * song.durationMs).toLong())
-                },
-                colors = SliderDefaults.colors(
-                    thumbColor = accentColor,
-                    activeTrackColor = accentColor,
-                    inactiveTrackColor = Color(0x33FFFFFF)
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(20.dp)
+            // 〰️ Android 15 靈動波浪進度條 (Squiggly Waveform Progress Bar)
+            SquigglyProgressBar(
+                progress = if (isSeeking) seekProgress else progressFraction,
+                isPlaying = song.isPlaying,
+                accentColor = accentColor,
+                onSeek = { seekFraction ->
+                    PlaybackStateHolder.seekTo((seekFraction * song.durationMs).toLong())
+                }
             )
 
             // 時間標籤
@@ -738,6 +873,118 @@ private fun MediaControlCard(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * 〰️ Android 15 靈動波浪進度條 (Squiggly Waveform Progress Bar)
+ */
+@Composable
+private fun SquigglyProgressBar(
+    progress: Float,
+    isPlaying: Boolean,
+    accentColor: Color,
+    onSeek: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "wave")
+    val phase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2 * PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "phase"
+    )
+
+    val waveAmplitude by animateFloatAsState(
+        targetValue = if (isPlaying) 3.5f else 0f,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessLow),
+        label = "amp"
+    )
+
+    var isDragging by remember { mutableStateOf(false) }
+    var dragProgress by remember { mutableFloatStateOf(0f) }
+
+    val currentProgress = if (isDragging) dragProgress else progress.coerceIn(0f, 1f)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(24.dp)
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { offset ->
+                        isDragging = true
+                        dragProgress = (offset.x / size.width).coerceIn(0f, 1f)
+                    },
+                    onDragEnd = {
+                        isDragging = false
+                        onSeek(dragProgress)
+                    },
+                    onDragCancel = {
+                        isDragging = false
+                    },
+                    onHorizontalDrag = { change, _ ->
+                        change.consume()
+                        dragProgress = (change.position.x / size.width).coerceIn(0f, 1f)
+                    }
+                )
+            },
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = size.width
+            val height = size.height
+            val centerY = height / 2f
+            val progressX = (width * currentProgress).coerceIn(0f, width)
+
+            // 1. 已播放波浪軌道 (Squiggly Wave Track)
+            if (progressX > 0f) {
+                val wavePath = Path()
+                wavePath.moveTo(0f, centerY)
+
+                val wavelength = 36f
+                var x = 0f
+                val step = 2f
+                while (x <= progressX) {
+                    val angle = (x / wavelength) * (2 * PI) - phase
+                    val y = centerY + (sin(angle) * waveAmplitude).toFloat()
+                    wavePath.lineTo(x, y)
+                    x += step
+                }
+
+                drawPath(
+                    path = wavePath,
+                    color = accentColor,
+                    style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
+                )
+            }
+
+            // 2. 未播放直線背景軌道 (Inactive Flat Track)
+            if (progressX < width) {
+                drawLine(
+                    color = Color.White.copy(alpha = 0.20f),
+                    start = Offset(progressX, centerY),
+                    end = Offset(width, centerY),
+                    strokeWidth = 3.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+            }
+
+            // 3. 圓形進度按鈕 (Thumb)
+            drawCircle(
+                color = Color.White,
+                radius = 5.5.dp.toPx(),
+                center = Offset(progressX, centerY)
+            )
+            drawCircle(
+                color = accentColor,
+                radius = 3.5.dp.toPx(),
+                center = Offset(progressX, centerY)
+            )
         }
     }
 }
