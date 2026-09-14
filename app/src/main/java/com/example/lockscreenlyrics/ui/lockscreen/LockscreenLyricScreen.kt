@@ -443,22 +443,6 @@ private fun LyricRowItem(
         label = "alpha"
     )
 
-    // ✨ C. 旋律微呼吸動效 (Subtle Breath Pulse)
-    val infiniteTransition = rememberInfiniteTransition(label = "activePulse")
-    val breathScale by if (isActive) {
-        infiniteTransition.animateFloat(
-            initialValue = 1.0f,
-            targetValue = 1.025f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(2200, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "breath"
-        )
-    } else {
-        remember { mutableFloatStateOf(1.0f) }
-    }
-
     // 🌟 A. 舞台焦點柔光膠囊過渡 (Spotlight Frosted Capsule)
     val capsuleAlpha by animateFloatAsState(
         targetValue = if (isActive) 1.0f else 0f,
@@ -475,8 +459,8 @@ private fun LyricRowItem(
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer {
-                scaleX = scale * breathScale
-                scaleY = scale * breathScale
+                scaleX = scale
+                scaleY = scale
                 this.alpha = alpha
                 transformOrigin = TransformOrigin(0.5f, 0.5f)
             }
@@ -512,7 +496,7 @@ private fun LyricRowItem(
             .padding(horizontal = 16.dp, vertical = if (isActive) 8.dp else 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 1. 原文歌詞（💎 B. 琉璃光澤晶透文字 + 主唱句高清晰微舞台光）
+        // 1. 原文歌詞 (純淨無文字光暈)
         Text(
             text = displayText,
             color = originalColor,
@@ -520,16 +504,6 @@ private fun LyricRowItem(
             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
             textAlign = TextAlign.Center,
             lineHeight = (baseFontSize * 1.3f).sp,
-            style = if (isActive) {
-                LocalTextStyle.current.copy(
-                    shadow = Shadow(
-                        color = accentColor.copy(alpha = 0.45f),
-                        blurRadius = 14f
-                    )
-                )
-            } else {
-                LocalTextStyle.current
-            },
             modifier = Modifier.fillMaxWidth()
         )
 

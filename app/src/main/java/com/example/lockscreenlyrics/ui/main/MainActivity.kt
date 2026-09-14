@@ -873,10 +873,7 @@ private fun LivePreviewCard(
                         color = originalColor,
                         fontSize = (lyricSizeSp * 0.65f).coerceIn(15f, 24f).sp,
                         fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        style = androidx.compose.ui.text.TextStyle(
-                            shadow = Shadow(color = accentColor.copy(alpha = 0.45f), blurRadius = 12f)
-                        )
+                        textAlign = TextAlign.Center
                     )
 
                     // 羅馬音
