@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import com.example.lockscreenlyrics.R
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
