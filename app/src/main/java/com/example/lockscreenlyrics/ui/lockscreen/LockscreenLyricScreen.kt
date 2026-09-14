@@ -347,81 +347,50 @@ private fun AmbientFluidBackground(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 24000, easing = LinearEasing),
+            animation = tween(durationMillis = 20000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "phase1"
-    )
-    val scaleShift by infiniteTransition.animateFloat(
-        initialValue = 0.94f,
-        targetValue = 1.06f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 9000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "scale"
     )
 
     val dynamicPrimary = remember(bitmap, accentColor) {
         extractDominantColor(bitmap) ?: accentColor
     }
-    val dynamicSecondary = remember(dynamicPrimary) {
-        dynamicPrimary.copy(
-            red = (dynamicPrimary.red * 0.75f + 0.25f).coerceIn(0f, 1f),
-            green = (dynamicPrimary.green * 0.65f + 0.15f).coerceIn(0f, 1f),
-            blue = (dynamicPrimary.blue * 0.85f + 0.15f).coerceIn(0f, 1f)
-        )
-    }
 
     Box(modifier = modifier.fillMaxSize()) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    scaleX = scaleShift
-                    scaleY = scaleShift
-                }
-        ) {
+        // 1. 全螢幕無邊界柔和流光 (使用全屏 drawRect，絕無圓形裁切硬邊)
+        Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
             val rad = Math.toRadians(phase1.toDouble())
-            val offsetX1 = (Math.cos(rad) * w * 0.22f).toFloat()
-            val offsetY1 = (Math.sin(rad) * h * 0.15f).toFloat()
+            val offsetX = (Math.cos(rad) * w * 0.15f).toFloat()
+            val offsetY = (Math.sin(rad) * h * 0.10f).toFloat()
+            val maxDim = maxOf(w, h)
 
-            drawCircle(
+            // 全螢幕矩形填滿，漸層半徑延伸至螢幕外，平滑淡出至透明
+            drawRect(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        dynamicPrimary.copy(alpha = 0.45f),
-                        dynamicPrimary.copy(alpha = 0.15f),
+                        dynamicPrimary.copy(alpha = 0.22f),
+                        dynamicPrimary.copy(alpha = 0.08f),
                         Color.Transparent
                     ),
-                    center = Offset(w * 0.35f + offsetX1, h * 0.35f + offsetY1),
-                    radius = w * 0.90f
-                )
-            )
-
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        dynamicSecondary.copy(alpha = 0.40f),
-                        dynamicSecondary.copy(alpha = 0.10f),
-                        Color.Transparent
-                    ),
-                    center = Offset(w * 0.65f - offsetX1, h * 0.65f - offsetY1),
-                    radius = w * 0.95f
+                    center = Offset(w * 0.5f + offsetX, h * 0.35f + offsetY),
+                    radius = maxDim * 1.3f
                 )
             )
         }
 
+        // 2. 疊加暗色毛玻璃漸層遮罩 (依使用者 bgDimPercent 控制深度)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color.Black.copy(alpha = dimAlpha * 0.32f),
+                            Color.Black.copy(alpha = dimAlpha * 0.35f),
                             Color.Black.copy(alpha = dimAlpha * 0.70f),
-                            Color.Black.copy(alpha = (dimAlpha * 1.05f).coerceAtMost(0.98f))
+                            Color.Black.copy(alpha = dimAlpha)
                         )
                     )
                 )
