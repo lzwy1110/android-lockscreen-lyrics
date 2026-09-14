@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -333,7 +334,7 @@ fun LockscreenLyricScreen(
 }
 
 /**
- * 🌈 動態呼吸流光毛玻璃背景 (Fluid Ambient Mesh)
+ * 🌈 動態呼吸流光極光背景 (Fluid Ambient Aurora Mesh)
  */
 @Composable
 private fun AmbientFluidBackground(
@@ -347,54 +348,107 @@ private fun AmbientFluidBackground(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 20000, easing = LinearEasing),
+            animation = tween(durationMillis = 18000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "phase1"
     )
+    val phase2 by infiniteTransition.animateFloat(
+        initialValue = 180f,
+        targetValue = 540f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 24000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "phase2"
+    )
 
-    val dynamicPrimary = remember(bitmap, accentColor) {
-        extractDominantColor(bitmap) ?: accentColor
+    // 智能和諧多色系色彩調配 (提取封面或主題色並計算互補/和諧極光色)
+    val (color1, color2, color3) = remember(bitmap, accentColor) {
+        val base = extractDominantColor(bitmap) ?: accentColor
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(base.toArgb(), hsv)
+        val hue = hsv[0]
+        val sat = hsv[1].coerceAtLeast(0.60f)
+        val valB = hsv[2].coerceAtLeast(0.70f)
+
+        val c1 = Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, valB)))
+        val c2 = Color(android.graphics.Color.HSVToColor(floatArrayOf((hue + 45f) % 360f, sat * 0.9f, valB)))
+        val c3 = Color(android.graphics.Color.HSVToColor(floatArrayOf((hue + 130f) % 360f, sat * 0.85f, valB * 0.9f)))
+        Triple(c1, c2, c3)
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // 1. 全螢幕無邊界柔和流光 (使用全屏 drawRect，絕無圓形裁切硬邊)
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            val rad = Math.toRadians(phase1.toDouble())
-            val offsetX = (Math.cos(rad) * w * 0.15f).toFloat()
-            val offsetY = (Math.sin(rad) * h * 0.10f).toFloat()
-            val maxDim = maxOf(w, h)
-
-            // 全螢幕矩形填滿，漸層半徑延伸至螢幕外，平滑淡出至透明
-            drawRect(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        dynamicPrimary.copy(alpha = 0.22f),
-                        dynamicPrimary.copy(alpha = 0.08f),
-                        Color.Transparent
-                    ),
-                    center = Offset(w * 0.5f + offsetX, h * 0.35f + offsetY),
-                    radius = maxDim * 1.3f
-                )
-            )
-        }
-
-        // 2. 疊加暗色毛玻璃漸層遮罩 (依使用者 bgDimPercent 控制深度)
+        // 1. 底層暗黑毛玻璃遮罩（壓暗原生桌布，確保歌詞文字高度清晰）
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color.Black.copy(alpha = dimAlpha * 0.35f),
-                            Color.Black.copy(alpha = dimAlpha * 0.70f),
-                            Color.Black.copy(alpha = dimAlpha)
+                            Color.Black.copy(alpha = (dimAlpha * 0.45f).coerceIn(0.2f, 0.95f)),
+                            Color.Black.copy(alpha = (dimAlpha * 0.70f).coerceIn(0.35f, 0.95f)),
+                            Color.Black.copy(alpha = (dimAlpha * 0.90f).coerceIn(0.5f, 0.98f))
                         )
                     )
                 )
         )
+
+        // 2. 頂層動態極光流光層（覆蓋在暗色底層之上，清晰呈現呼吸律動光澤）
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+
+            val rad1 = Math.toRadians(phase1.toDouble())
+            val rad2 = Math.toRadians(phase2.toDouble())
+
+            val x1 = w * (0.35f + 0.22f * kotlin.math.cos(rad1).toFloat())
+            val y1 = h * (0.30f + 0.16f * kotlin.math.sin(rad1).toFloat())
+
+            val x2 = w * (0.65f - 0.24f * kotlin.math.sin(rad2).toFloat())
+            val y2 = h * (0.58f + 0.18f * kotlin.math.cos(rad2).toFloat())
+
+            val x3 = w * (0.50f + 0.18f * kotlin.math.sin(rad1 * 1.3).toFloat())
+            val y3 = h * (0.78f - 0.14f * kotlin.math.cos(rad2 * 1.1).toFloat())
+
+            // 光球 1: 頂部主色極光 (Radiant Aurora Bloom)
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        color1.copy(alpha = 0.38f),
+                        color1.copy(alpha = 0.15f),
+                        Color.Transparent
+                    ),
+                    center = Offset(x1, y1),
+                    radius = w * 0.95f
+                )
+            )
+
+            // 光球 2: 中部和諧流光 (Harmonic Fluid Light)
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        color2.copy(alpha = 0.34f),
+                        color2.copy(alpha = 0.12f),
+                        Color.Transparent
+                    ),
+                    center = Offset(x2, y2),
+                    radius = w * 1.05f
+                )
+            )
+
+            // 光球 3: 底部柔和光暈 (Deep Bottom Atmosphere)
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        color3.copy(alpha = 0.28f),
+                        Color.Transparent
+                    ),
+                    center = Offset(x3, y3),
+                    radius = w * 0.85f
+                )
+            )
+        }
     }
 }
 
