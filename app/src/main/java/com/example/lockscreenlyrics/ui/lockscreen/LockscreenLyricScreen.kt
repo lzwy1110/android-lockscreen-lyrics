@@ -443,17 +443,8 @@ private fun LyricRowItem(
         label = "alpha"
     )
 
-    // 🌟 A. 舞台焦點柔光膠囊過渡 (Spotlight Frosted Capsule)
-    val capsuleAlpha by animateFloatAsState(
-        targetValue = if (isActive) 1.0f else 0f,
-        animationSpec = spring(dampingRatio = 0.85f, stiffness = 260f),
-        label = "capsuleAlpha"
-    )
-
     val displayText = if (convertTraditional) com.example.lockscreenlyrics.data.converter.ChineseConverter.toTraditional(line.text) else line.text
     val displayTrans = if (convertTraditional) com.example.lockscreenlyrics.data.converter.ChineseConverter.toTraditional(line.translation) else line.translation
-
-    val capsuleShape = RoundedCornerShape(20.dp)
 
     Column(
         modifier = Modifier
@@ -464,46 +455,28 @@ private fun LyricRowItem(
                 this.alpha = alpha
                 transformOrigin = TransformOrigin(0.5f, 0.5f)
             }
-            .clip(capsuleShape)
-            .then(
-                if (capsuleAlpha > 0.01f) {
-                    Modifier
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = 0.12f * capsuleAlpha),
-                                    Color.White.copy(alpha = 0.03f * capsuleAlpha),
-                                    Color.Transparent
-                                ),
-                                radius = 500f
-                            ),
-                            shape = capsuleShape
-                        )
-                        .border(
-                            width = 1.dp,
-                            brush = Brush.horizontalGradient(
-                                listOf(
-                                    Color.Transparent,
-                                    Color.White.copy(alpha = 0.18f * capsuleAlpha),
-                                    Color.Transparent
-                                )
-                            ),
-                            shape = capsuleShape
-                        )
-                } else Modifier
-            )
             .clickable { onLineClick() }
-            .padding(horizontal = 16.dp, vertical = if (isActive) 8.dp else 4.dp),
+            .padding(horizontal = 16.dp, vertical = 3.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 1. 原文歌詞 (純淨無文字光暈)
+        // 1. 原文歌詞（✨ 當前主唱句帶有 Apple 級細緻淡光暈）
         Text(
             text = displayText,
             color = originalColor,
             fontSize = baseFontSize.sp,
             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
             textAlign = TextAlign.Center,
-            lineHeight = (baseFontSize * 1.3f).sp,
+            lineHeight = (baseFontSize * 1.32f).sp,
+            style = if (isActive) {
+                LocalTextStyle.current.copy(
+                    shadow = Shadow(
+                        color = accentColor.copy(alpha = 0.45f),
+                        blurRadius = 12f
+                    )
+                )
+            } else {
+                LocalTextStyle.current
+            },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -512,7 +485,7 @@ private fun LyricRowItem(
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = line.romaji,
-                color = if (isActive) romajiColor else romajiColor.copy(alpha = 0.65f),
+                color = if (isActive) romajiColor else romajiColor.copy(alpha = 0.60f),
                 fontSize = (baseFontSize * 0.46f).sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
@@ -526,7 +499,7 @@ private fun LyricRowItem(
             Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = displayTrans,
-                color = if (isActive) translationColor else translationColor.copy(alpha = 0.70f),
+                color = if (isActive) translationColor else translationColor.copy(alpha = 0.65f),
                 fontSize = (baseFontSize * 0.58f).sp,
                 fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
                 textAlign = TextAlign.Center,

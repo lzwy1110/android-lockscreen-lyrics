@@ -837,43 +837,22 @@ private fun LivePreviewCard(
                 val displayOriginal = if (convertTraditional) com.example.lockscreenlyrics.data.converter.ChineseConverter.toTraditional(rawOriginal) else rawOriginal
                 val displayTrans = if (convertTraditional) com.example.lockscreenlyrics.data.converter.ChineseConverter.toTraditional(rawTrans) else rawTrans
 
-                val previewCapsuleShape = RoundedCornerShape(16.dp)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(previewCapsuleShape)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = 0.10f),
-                                    Color.White.copy(alpha = 0.02f),
-                                    Color.Transparent
-                                ),
-                                radius = 400f
-                            ),
-                            shape = previewCapsuleShape
-                        )
-                        .border(
-                            width = 1.dp,
-                            brush = Brush.horizontalGradient(
-                                listOf(
-                                    Color.Transparent,
-                                    Color.White.copy(alpha = 0.16f),
-                                    Color.Transparent
-                                )
-                            ),
-                            shape = previewCapsuleShape
-                        )
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .padding(vertical = 4.dp)
                 ) {
-                    // 原文
+                    // 原文（細緻微光暈）
                     Text(
                         text = displayOriginal,
                         color = originalColor,
                         fontSize = (lyricSizeSp * 0.65f).coerceIn(15f, 24f).sp,
                         fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = Shadow(color = accentColor.copy(alpha = 0.45f), blurRadius = 12f)
+                        )
                     )
 
                     // 羅馬音
