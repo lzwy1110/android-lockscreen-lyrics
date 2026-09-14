@@ -837,11 +837,35 @@ private fun LivePreviewCard(
                 val displayOriginal = if (convertTraditional) com.example.lockscreenlyrics.data.converter.ChineseConverter.toTraditional(rawOriginal) else rawOriginal
                 val displayTrans = if (convertTraditional) com.example.lockscreenlyrics.data.converter.ChineseConverter.toTraditional(rawTrans) else rawTrans
 
+                val previewCapsuleShape = RoundedCornerShape(16.dp)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
+                        .clip(previewCapsuleShape)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.10f),
+                                    Color.White.copy(alpha = 0.02f),
+                                    Color.Transparent
+                                ),
+                                radius = 400f
+                            ),
+                            shape = previewCapsuleShape
+                        )
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.horizontalGradient(
+                                listOf(
+                                    Color.Transparent,
+                                    Color.White.copy(alpha = 0.16f),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = previewCapsuleShape
+                        )
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     // 原文
                     Text(

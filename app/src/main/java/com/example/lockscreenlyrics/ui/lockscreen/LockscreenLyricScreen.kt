@@ -174,12 +174,8 @@ fun LockscreenLyricScreen(
                 )
             }
     ) {
-        // 1. 🌈 動態流光毛玻璃背景 (Fluid Ambient Mesh)
-        AmbientFluidBackground(
-            bitmap = song.albumArtBitmap,
-            accentColor = accentColor,
-            dimAlpha = dimAlpha
-        )
+        // 1. 🧼 純淨透光深色毛玻璃背景 (乾淨襯托原桌布)
+        AmbientFluidBackground(dimAlpha = dimAlpha)
 
         Column(
             modifier = Modifier
@@ -334,134 +330,26 @@ fun LockscreenLyricScreen(
 }
 
 /**
- * 🌈 動態呼吸流光極光背景 (Fluid Ambient Aurora Mesh)
+ * 🧼 純淨透光深色毛玻璃背景
  */
 @Composable
 private fun AmbientFluidBackground(
-    bitmap: Bitmap?,
-    accentColor: Color,
     dimAlpha: Float,
     modifier: Modifier = Modifier
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "ambient")
-    val phase1 by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 18000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase1"
-    )
-    val phase2 by infiniteTransition.animateFloat(
-        initialValue = 180f,
-        targetValue = 540f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 24000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase2"
-    )
-
-    // 智能和諧多色系色彩調配 (提取封面或主題色並計算互補/和諧極光色)
-    val (color1, color2, color3) = remember(bitmap, accentColor) {
-        val base = extractDominantColor(bitmap) ?: accentColor
-        val hsv = FloatArray(3)
-        android.graphics.Color.colorToHSV(base.toArgb(), hsv)
-        val hue = hsv[0]
-        val sat = hsv[1].coerceAtLeast(0.60f)
-        val valB = hsv[2].coerceAtLeast(0.70f)
-
-        val c1 = Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, valB)))
-        val c2 = Color(android.graphics.Color.HSVToColor(floatArrayOf((hue + 45f) % 360f, sat * 0.9f, valB)))
-        val c3 = Color(android.graphics.Color.HSVToColor(floatArrayOf((hue + 130f) % 360f, sat * 0.85f, valB * 0.9f)))
-        Triple(c1, c2, c3)
-    }
-
-    Box(modifier = modifier.fillMaxSize()) {
-        // 1. 底層暗黑毛玻璃遮罩（壓暗原生桌布，確保歌詞文字高度清晰）
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = (dimAlpha * 0.45f).coerceIn(0.2f, 0.95f)),
-                            Color.Black.copy(alpha = (dimAlpha * 0.70f).coerceIn(0.35f, 0.95f)),
-                            Color.Black.copy(alpha = (dimAlpha * 0.90f).coerceIn(0.5f, 0.98f))
-                        )
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Black.copy(alpha = (dimAlpha * 0.40f).coerceIn(0.15f, 0.95f)),
+                        Color.Black.copy(alpha = (dimAlpha * 0.70f).coerceIn(0.35f, 0.95f)),
+                        Color.Black.copy(alpha = (dimAlpha * 0.92f).coerceIn(0.50f, 0.98f))
                     )
                 )
-        )
-
-        // 2. 頂層動態極光流光層（覆蓋在暗色底層之上，清晰呈現呼吸律動光澤）
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-
-            val rad1 = Math.toRadians(phase1.toDouble())
-            val rad2 = Math.toRadians(phase2.toDouble())
-
-            val x1 = w * (0.35f + 0.22f * kotlin.math.cos(rad1).toFloat())
-            val y1 = h * (0.30f + 0.16f * kotlin.math.sin(rad1).toFloat())
-
-            val x2 = w * (0.65f - 0.24f * kotlin.math.sin(rad2).toFloat())
-            val y2 = h * (0.58f + 0.18f * kotlin.math.cos(rad2).toFloat())
-
-            val x3 = w * (0.50f + 0.18f * kotlin.math.sin(rad1 * 1.3).toFloat())
-            val y3 = h * (0.78f - 0.14f * kotlin.math.cos(rad2 * 1.1).toFloat())
-
-            // 光球 1: 頂部主色極光 (Radiant Aurora Bloom)
-            drawRect(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        color1.copy(alpha = 0.38f),
-                        color1.copy(alpha = 0.15f),
-                        Color.Transparent
-                    ),
-                    center = Offset(x1, y1),
-                    radius = w * 0.95f
-                )
             )
-
-            // 光球 2: 中部和諧流光 (Harmonic Fluid Light)
-            drawRect(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        color2.copy(alpha = 0.34f),
-                        color2.copy(alpha = 0.12f),
-                        Color.Transparent
-                    ),
-                    center = Offset(x2, y2),
-                    radius = w * 1.05f
-                )
-            )
-
-            // 光球 3: 底部柔和光暈 (Deep Bottom Atmosphere)
-            drawRect(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        color3.copy(alpha = 0.28f),
-                        Color.Transparent
-                    ),
-                    center = Offset(x3, y3),
-                    radius = w * 0.85f
-                )
-            )
-        }
-    }
-}
-
-private fun extractDominantColor(bitmap: Bitmap?): Color? {
-    if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) return null
-    return try {
-        val sampleX = (bitmap.width * 0.5f).toInt().coerceIn(0, bitmap.width - 1)
-        val sampleY = (bitmap.height * 0.5f).toInt().coerceIn(0, bitmap.height - 1)
-        val pixel = bitmap.getPixel(sampleX, sampleY)
-        Color(pixel)
-    } catch (_: Exception) {
-        null
-    }
+    )
 }
 
 /**
@@ -529,7 +417,7 @@ private fun LyricRowItem(
 
     // 1. Apple 級「距離感知階梯縮放」
     val targetScale = when (distanceFromActive) {
-        0 -> 1.10f     // 當前主唱句：放大至 110%
+        0 -> 1.08f     // 當前主唱句：放大至 108%
         1 -> 0.93f     // 上下相鄰句：93%
         2 -> 0.84f     // 距離 2 行：84%
         else -> 0.76f  // 較遠句：76%
@@ -538,46 +426,93 @@ private fun LyricRowItem(
     // 2. 距離感知階梯透明度（創造景深層次感）
     val targetAlpha = when (distanceFromActive) {
         0 -> 1.0f      // 100% 清晰聚焦
-        1 -> 0.55f     // 55% 柔和過渡
-        2 -> 0.28f     // 28% 背景弱化
-        else -> 0.14f  // 14% 邊緣淡出
+        1 -> 0.52f     // 52% 柔和過渡
+        2 -> 0.26f     // 26% 背景弱化
+        else -> 0.12f  // 12% 邊緣淡出
     }
 
     // 3. 物理彈簧阻尼過渡（具有自然動能與慣性質感）
     val scale by animateFloatAsState(
         targetValue = targetScale,
-        animationSpec = spring(
-            dampingRatio = 0.80f,
-            stiffness = 220f
-        ),
+        animationSpec = spring(dampingRatio = 0.80f, stiffness = 220f),
         label = "scale"
     )
     val alpha by animateFloatAsState(
         targetValue = targetAlpha,
-        animationSpec = spring(
-            dampingRatio = 0.82f,
-            stiffness = 240f
-        ),
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 240f),
         label = "alpha"
+    )
+
+    // ✨ C. 旋律微呼吸動效 (Subtle Breath Pulse)
+    val infiniteTransition = rememberInfiniteTransition(label = "activePulse")
+    val breathScale by if (isActive) {
+        infiniteTransition.animateFloat(
+            initialValue = 1.0f,
+            targetValue = 1.025f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2200, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "breath"
+        )
+    } else {
+        remember { mutableFloatStateOf(1.0f) }
+    }
+
+    // 🌟 A. 舞台焦點柔光膠囊過渡 (Spotlight Frosted Capsule)
+    val capsuleAlpha by animateFloatAsState(
+        targetValue = if (isActive) 1.0f else 0f,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = 260f),
+        label = "capsuleAlpha"
     )
 
     val displayText = if (convertTraditional) com.example.lockscreenlyrics.data.converter.ChineseConverter.toTraditional(line.text) else line.text
     val displayTrans = if (convertTraditional) com.example.lockscreenlyrics.data.converter.ChineseConverter.toTraditional(line.translation) else line.translation
 
+    val capsuleShape = RoundedCornerShape(20.dp)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
+                scaleX = scale * breathScale
+                scaleY = scale * breathScale
                 this.alpha = alpha
                 transformOrigin = TransformOrigin(0.5f, 0.5f)
             }
+            .clip(capsuleShape)
+            .then(
+                if (capsuleAlpha > 0.01f) {
+                    Modifier
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.12f * capsuleAlpha),
+                                    Color.White.copy(alpha = 0.03f * capsuleAlpha),
+                                    Color.Transparent
+                                ),
+                                radius = 500f
+                            ),
+                            shape = capsuleShape
+                        )
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.horizontalGradient(
+                                listOf(
+                                    Color.Transparent,
+                                    Color.White.copy(alpha = 0.18f * capsuleAlpha),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = capsuleShape
+                        )
+                } else Modifier
+            )
             .clickable { onLineClick() }
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = if (isActive) 8.dp else 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 1. 原文歌詞（✨ 主唱句自帶柔和發光質感與高光微陰影）
+        // 1. 原文歌詞（💎 B. 琉璃光澤晶透文字 + 主唱句高清晰微舞台光）
         Text(
             text = displayText,
             color = originalColor,
@@ -589,7 +524,7 @@ private fun LyricRowItem(
                 LocalTextStyle.current.copy(
                     shadow = Shadow(
                         color = accentColor.copy(alpha = 0.45f),
-                        blurRadius = 16f
+                        blurRadius = 14f
                     )
                 )
             } else {
